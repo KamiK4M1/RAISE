@@ -2,7 +2,9 @@ import type { NextAuthOptions } from "next-auth"
 import CredentialsProvider from "next-auth/providers/credentials"
 import GoogleProvider from "next-auth/providers/google"
 import { MongoDBAdapter } from "@auth/mongodb-adapter"
+import { PrismaAdapter } from "@auth/prisma-adapter"
 import { MongoClient } from "mongodb"
+import prisma from "@/lib/prisma" 
 import bcrypt from "bcryptjs"
 
 // Extend NextAuth types to include id in session
@@ -31,7 +33,8 @@ const client = new MongoClient(process.env.MONGODB_URI!)
 const clientPromise = client.connect()
 
 export const authOptions: NextAuthOptions = {
-  adapter: MongoDBAdapter(clientPromise),
+  // Use the PrismaAdapter
+  adapter: PrismaAdapter(prisma),
   providers: [
     GoogleProvider({
       clientId: process.env.GOOGLE_CLIENT_ID!,
@@ -47,30 +50,29 @@ export const authOptions: NextAuthOptions = {
         if (!credentials?.email || !credentials?.password) {
           return null
         }
-        
-        try {
-          const client = await clientPromise
-          const users = client.db().collection("users")
-          const user = await users.findOne({ email: credentials.email })
-          
-          if (!user) {
-            return null
-          }
-          
-          const isPasswordValid = await bcrypt.compare(credentials.password, user.password)
-          
-          if (!isPasswordValid) {
-            return null
-          }
-          
-          return {
-            id: user._id.toString(),
+
+        // Use Prisma to find the user
+        const user = await prisma.user.findUnique({
+          where: { email: credentials.email },
+        })
+
+        if (!user || !user.password) {
+          return null
+        }
+
+        const isPasswordValid = await bcrypt.compare(
+          credentials.password,
+          user.password
+        )
+
+        if (!isPasswordValid) {
+          return null
+        }
+
+        return {
+            id: user.id,
             email: user.email,
             name: user.name,
-          }
-        } catch (error) {
-          console.error("Auth error:", error)
-          return null
         }
       },
     }),

@@ -1,5 +1,6 @@
 import { type NextRequest, NextResponse } from "next/server"
 import { MongoClient } from "mongodb"
+import prisma from "@/lib/prisma"
 import bcrypt from "bcryptjs"
 
 const client = new MongoClient(process.env.MONGODB_URI!)
@@ -63,8 +64,8 @@ export async function POST(request: NextRequest) {
     const users = db.collection("users")
 
     // Check if user already exists
-    const existingUser = await users.findOne({ 
-      email: email.toLowerCase() 
+    const existingUser = await prisma.user.findUnique({
+      where: { email: email.toLowerCase() },
     })
     
     if (existingUser) {
@@ -74,45 +75,33 @@ export async function POST(request: NextRequest) {
       )
     }
 
+
     // Hash password
-    const saltRounds = 12
-    const hashedPassword = await bcrypt.hash(password, saltRounds)
+   const hashedPassword = await bcrypt.hash(password, 12)
+
 
     // Create user
-    const result = await users.insertOne({
-      name: name.trim(),
-      email: email.toLowerCase(),
-      password: hashedPassword,
-      createdAt: new Date(),
-      updatedAt: new Date(),
-      emailVerified: null, // For future email verification
-      role: "user"
+    const user = await prisma.user.create({
+      data: {
+        name: name.trim(),
+        email: email.toLowerCase(),
+        password: hashedPassword,
+      },
     })
+
+    const { password: _, ...userWithoutPassword } = user
+
 
     // Remove password from response
     return NextResponse.json(
-      { 
+      {
         message: "สมัครสมาชิกสำเร็จ",
-        user: {
-          id: result.insertedId,
-          name: name.trim(),
-          email: email.toLowerCase()
-        }
+        user: userWithoutPassword,
       },
       { status: 201 }
     )
-
   } catch (error) {
     console.error("Registration error:", error)
-    
-    // Handle MongoDB duplicate key error
-    if (error instanceof Error && error.message.includes("E11000")) {
-      return NextResponse.json(
-        { error: "อีเมลนี้ถูกใช้งานแล้ว" },
-        { status: 409 }
-      )
-    }
-
     return NextResponse.json(
       { error: "เกิดข้อผิดพลาดภายในเซิร์ฟเวอร์" },
       { status: 500 }
