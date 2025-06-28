@@ -35,7 +35,7 @@ export default function DashboardPage() {
         <div className="container mx-auto px-4 py-4 flex items-center justify-between">
           <div className="flex items-center space-x-2">
             <Brain className="h-8 w-8 text-blue-600" />
-            <span className="text-2xl font-bold text-gray-900">AI Learning</span>
+            <span className="text-2xl font-bold text-gray-900">RAISE</span>
           </div>
           <div className="flex items-center space-x-4">
             <span className="text-gray-600">สวัสดี, นักเรียน</span>

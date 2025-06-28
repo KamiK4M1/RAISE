@@ -7,8 +7,21 @@ import { AuthProvider } from "@/components/providers/session-provider"
 const inter = Inter({ subsets: ["latin"] })
 
 export const metadata: Metadata = {
-  title: "AI Learning - เรียนรู้อย่างชาญฉลาดด้วย AI",
-  description: "แพลตฟอร์มการเรียนรู้ที่ขับเคลื่อนด้วยปัญญาประดิษฐ์ ใช้เทคโนโลยี RAG ในการสร้างแฟลชการ์ด แบบทดสอบ และระบบถาม-ตอบอัจฉริยะ",
+  title: "RAISE - ยกระดับการเรียนรู้ด้วย AI",
+  description: "แพลตฟอร์มการเรียนรู้อัจฉริยะที่ใช้เทคโนโลยี RAG และ AI เพื่อสร้างแฟลชการ์ด แบบทดสอบ และระบบถาม-ตอบที่ปรับเปลี่ยนตามสไตล์การเรียนรู้ของคุณ",
+  keywords: ["AI", "การเรียนรู้", "แฟลชการ์ด", "แบบทดสอบ", "RAG", "ปัญญาประดิษฐ์", "การศึกษา"],
+  authors: [{ name: "RAISE Team" }],
+  openGraph: {
+    title: "RAISE - ยกระดับการเรียนรู้ด้วย AI",
+    description: "แพลตฟอร์มการเรียนรู้อัจฉริยะที่ใช้เทคโนโลยี RAG และ AI เพื่อสร้างแฟลชการ์ด แบบทดสอบ และระบบถาม-ตอบที่ปรับเปลี่ยนตามสไตล์การเรียนรู้ของคุณ",
+    type: "website",
+    locale: "th_TH",
+  },
+  twitter: {
+    card: "summary_large_image",
+    title: "RAISE - ยกระดับการเรียนรู้ด้วย AI",
+    description: "แพลตฟอร์มการเรียนรู้อัจฉริยะที่ใช้เทคโนโลยี RAG และ AI",
+  },
 }
 
 export default function RootLayout({

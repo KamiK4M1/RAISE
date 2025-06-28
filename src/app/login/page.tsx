@@ -124,7 +124,7 @@ export default function LoginPage() {
               <Brain className="h-12 w-12 text-blue-600" />
             </motion.div>
             <span className="text-3xl font-bold bg-gradient-to-r from-blue-600 to-purple-600 bg-clip-text text-transparent">
-              AI Learning
+              RAISE
             </span>
           </Link>
         </motion.div>
