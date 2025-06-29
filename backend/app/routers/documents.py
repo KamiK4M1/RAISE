@@ -1,0 +1,248 @@
+from fastapi import APIRouter, UploadFile, File, Form, HTTPException, Depends, Query
+from typing import List, Optional
+import logging
+from datetime import datetime
+
+from app.models.document import (
+    DocumentResponse, 
+    DocumentListResponse, 
+    DocumentProcessRequest
+)
+from app.services.document_processor import document_processor
+from app.utils.file_handler import file_handler
+from app.core.exceptions import FileUploadError, DocumentProcessingError
+
+logger = logging.getLogger(__name__)
+
+router = APIRouter()
+
+# Temporary user ID - in production, this should come from JWT token
+async def get_current_user_id() -> str:
+    # TODO: Implement JWT token validation
+    return "temp_user_123"
+
+@router.post("/upload", response_model=DocumentResponse)
+async def upload_document(
+    file: UploadFile = File(...),
+    user_id: str = Depends(get_current_user_id)
+):
+    """Upload and process a document"""
+    try:
+        # Validate file
+        file_handler.validate_file(file.filename, file.size)
+        
+        # Read file content
+        file_content = await file.read()
+        
+        # Save file
+        file_path = await file_handler.save_file(file_content, file.filename)
+        
+        # Extract file type
+        file_type = file.filename.split('.')[-1].lower()
+        
+        # Start document processing
+        document_id = await document_processor.process_document(
+            file_path=file_path,
+            filename=file.filename,
+            file_type=file_type,
+            file_size=file.size,
+            user_id=user_id
+        )
+        
+        return DocumentResponse(
+            success=True,
+            data={
+                "document_id": document_id,
+                "filename": file.filename,
+                "status": "processing"
+            },
+            message="ไฟล์ถูกอัปโหลดและกำลังประมวลผล",
+            timestamp=datetime.utcnow().isoformat() + "Z"
+        )
+        
+    except FileUploadError as e:
+        logger.error(f"File upload error: {e}")
+        raise HTTPException(status_code=400, detail=str(e))
+    except DocumentProcessingError as e:
+        logger.error(f"Document processing error: {e}")
+        raise HTTPException(status_code=400, detail=str(e))
+    except Exception as e:
+        logger.error(f"Unexpected error in upload: {e}")
+        raise HTTPException(status_code=500, detail="เกิดข้อผิดพลาดในการอัปโหลดไฟล์")
+
+@router.get("/list", response_model=DocumentListResponse)
+async def list_documents(
+    skip: int = Query(0, ge=0),
+    limit: int = Query(10, ge=1, le=100),
+    user_id: str = Depends(get_current_user_id)
+):
+    """List user's documents"""
+    try:
+        documents = await document_processor.list_user_documents(user_id, skip, limit)
+        
+        return DocumentListResponse(
+            success=True,
+            data=documents,
+            message="ดึงรายการเอกสารสำเร็จ",
+            timestamp=datetime.utcnow().isoformat() + "Z"
+        )
+        
+    except Exception as e:
+        logger.error(f"Error listing documents: {e}")
+        raise HTTPException(status_code=500, detail="เกิดข้อผิดพลาดในการดึงรายการเอกสาร")
+
+@router.get("/{doc_id}", response_model=DocumentResponse)
+async def get_document(
+    doc_id: str,
+    user_id: str = Depends(get_current_user_id)
+):
+    """Get document details"""
+    try:
+        document = await document_processor.get_document(doc_id, user_id)
+        
+        if not document:
+            raise HTTPException(status_code=404, detail="ไม่พบเอกสารที่ร้องขอ")
+        
+        # Return document without content for performance (unless specifically requested)
+        document_data = {
+            "document_id": document.document_id,
+            "filename": document.filename,
+            "file_type": document.file_type,
+            "file_size": document.file_size,
+            "processing_status": document.processing_status,
+            "processed_at": document.processed_at,
+            "created_at": document.created_at,
+            "chunk_count": len(document.chunks),
+            "error_message": document.error_message
+        }
+        
+        return DocumentResponse(
+            success=True,
+            data=document_data,
+            message="ดึงข้อมูลเอกสารสำเร็จ",
+            timestamp=datetime.utcnow().isoformat() + "Z"
+        )
+        
+    except HTTPException:
+        raise
+    except Exception as e:
+        logger.error(f"Error getting document: {e}")
+        raise HTTPException(status_code=500, detail="เกิดข้อผิดพลาดในการดึงข้อมูลเอกสาร")
+
+@router.delete("/{doc_id}", response_model=DocumentResponse)
+async def delete_document(
+    doc_id: str,
+    user_id: str = Depends(get_current_user_id)
+):
+    """Delete a document"""
+    try:
+        success = await document_processor.delete_document(doc_id, user_id)
+        
+        if not success:
+            raise HTTPException(status_code=404, detail="ไม่พบเอกสารที่จะลบ")
+        
+        return DocumentResponse(
+            success=True,
+            data={"document_id": doc_id},
+            message="ลบเอกสารสำเร็จ",
+            timestamp=datetime.utcnow().isoformat() + "Z"
+        )
+        
+    except HTTPException:
+        raise
+    except Exception as e:
+        logger.error(f"Error deleting document: {e}")
+        raise HTTPException(status_code=500, detail="เกิดข้อผิดพลาดในการลบเอกสาร")
+
+@router.post("/{doc_id}/process", response_model=DocumentResponse)
+async def reprocess_document(
+    doc_id: str,
+    request: DocumentProcessRequest = DocumentProcessRequest(),
+    user_id: str = Depends(get_current_user_id)
+):
+    """Reprocess document with different parameters"""
+    try:
+        # Get document
+        document = await document_processor.get_document(doc_id, user_id)
+        
+        if not document:
+            raise HTTPException(status_code=404, detail="ไม่พบเอกสารที่ร้องขอ")
+        
+        # Reprocess chunks with new parameters
+        await document_processor._process_chunks(
+            doc_id, 
+            document.content, 
+            request.chunk_size, 
+            request.chunk_overlap
+        )
+        
+        return DocumentResponse(
+            success=True,
+            data={
+                "document_id": doc_id,
+                "status": "reprocessed",
+                "chunk_size": request.chunk_size,
+                "chunk_overlap": request.chunk_overlap
+            },
+            message="ประมวลผลเอกสารใหม่สำเร็จ",
+            timestamp=datetime.utcnow().isoformat() + "Z"
+        )
+        
+    except HTTPException:
+        raise
+    except Exception as e:
+        logger.error(f"Error reprocessing document: {e}")
+        raise HTTPException(status_code=500, detail="เกิดข้อผิดพลาดในการประมวลผลเอกสารใหม่")
+
+@router.get("/{doc_id}/stats", response_model=DocumentResponse)
+async def get_document_stats(
+    doc_id: str,
+    user_id: str = Depends(get_current_user_id)
+):
+    """Get document statistics"""
+    try:
+        stats = await document_processor.get_document_stats(doc_id, user_id)
+        
+        if not stats:
+            raise HTTPException(status_code=404, detail="ไม่พบเอกสารที่ร้องขอ")
+        
+        return DocumentResponse(
+            success=True,
+            data=stats,
+            message="ดึงสถิติเอกสารสำเร็จ",
+            timestamp=datetime.utcnow().isoformat() + "Z"
+        )
+        
+    except HTTPException:
+        raise
+    except Exception as e:
+        logger.error(f"Error getting document stats: {e}")
+        raise HTTPException(status_code=500, detail="เกิดข้อผิดพลาดในการดึงสถิติเอกสาร")
+
+@router.post("/{doc_id}/search", response_model=DocumentResponse)
+async def search_document(
+    doc_id: str,
+    query: str = Form(...),
+    top_k: int = Form(5),
+    user_id: str = Depends(get_current_user_id)
+):
+    """Search within document content"""
+    try:
+        results = await document_processor.search_document_chunks(
+            doc_id, query, user_id, top_k
+        )
+        
+        return DocumentResponse(
+            success=True,
+            data={
+                "query": query,
+                "results": results,
+                "total_results": len(results)
+            },
+            message="ค้นหาในเอกสารสำเร็จ",
+            timestamp=datetime.utcnow().isoformat() + "Z"
+        )
+        
+    except Exception as e:
+        logger.error(f"Error searching document: {e}")
+        raise HTTPException(status_code=500, detail="เกิดข้อผิดพลาดในการค้นหา")
