@@ -1,6 +1,6 @@
 "use client"
 
-import { useState } from "react"
+import { useState, useEffect } from "react"
 import { Button } from "@/components/ui/button"
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card"
 import { Progress } from "@/components/ui/progress"
@@ -17,16 +17,61 @@ import {
   TrendingUp,
 } from "lucide-react"
 import Link from "next/link"
+import { apiService } from "@/lib/api"
+import { UserAnalytics, Document } from "@/types/api"
 
 export default function DashboardPage() {
-  const [stats] = useState({
-    documentsUploaded: 12,
-    flashcardsStudied: 156,
-    quizzesTaken: 8,
-    questionsAsked: 23,
-    studyStreak: 7,
-    totalStudyTime: 45,
+  const [stats, setStats] = useState({
+    documentsUploaded: 0,
+    flashcardsStudied: 0,
+    quizzesTaken: 0,
+    questionsAsked: 0,
+    studyStreak: 0,
+    totalStudyTime: 0,
   })
+  const [recentDocuments, setRecentDocuments] = useState<Document[]>([])
+  const [loading, setLoading] = useState(true)
+  
+  useEffect(() => {
+    const loadDashboardData = async () => {
+      try {
+        // Load user analytics
+        const analyticsResponse = await apiService.getUserAnalytics(30)
+        if (analyticsResponse.success && analyticsResponse.data) {
+          const data = analyticsResponse.data
+          setStats({
+            documentsUploaded: data.learning_progress.total_documents_studied,
+            flashcardsStudied: data.flashcard_stats.total_reviews,
+            quizzesTaken: data.quiz_stats.total_attempts,
+            questionsAsked: data.chat_stats.total_questions,
+            studyStreak: data.flashcard_stats.streak_days,
+            totalStudyTime: Math.round(data.study_patterns.total_study_time / 60), // Convert to hours
+          })
+        }
+
+        // Load recent documents
+        const documentsResponse = await apiService.getDocuments()
+        if (documentsResponse.success && documentsResponse.data) {
+          setRecentDocuments(documentsResponse.data.slice(0, 5))
+        }
+      } catch (error) {
+        console.error('Error loading dashboard data:', error)
+        // Keep mock data as fallback
+        setStats({
+          documentsUploaded: 12,
+          flashcardsStudied: 156,
+          quizzesTaken: 8,
+          questionsAsked: 23,
+          studyStreak: 7,
+          totalStudyTime: 45,
+        })
+      } finally {
+        setLoading(false)
+      }
+    }
+
+    loadDashboardData()
+  }, [])
 
   return (
     <div className="min-h-screen bg-gray-50">

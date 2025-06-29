@@ -8,6 +8,8 @@ import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/com
 import { Progress } from "@/components/ui/progress"
 import { Brain, Upload, FileText, CheckCircle, AlertCircle, ArrowLeft } from "lucide-react"
 import Link from "next/link"
+import { apiService } from "@/lib/api"
+import { useAsyncApi } from "@/hooks/useApi"
 
 export default function UploadPage() {
   const [files, setFiles] = useState<File[]>([])
@@ -51,27 +53,49 @@ export default function UploadPage() {
     setUploading(true)
     setUploadProgress(0)
 
-    // Simulate upload process
-    for (let i = 0; i < files.length; i++) {
-      const file = files[i]
-      setUploadedFiles((prev) => [...prev, { name: file.name, status: "processing" }])
+    try {
+      for (let i = 0; i < files.length; i++) {
+        const file = files[i]
+        
+        // Update UI to show processing
+        setUploadedFiles((prev) => [...prev, { name: file.name, status: "processing" }])
 
-      // Simulate upload progress
-      for (let progress = 0; progress <= 100; progress += 10) {
-        setUploadProgress((i * 100 + progress) / files.length)
-        await new Promise((resolve) => setTimeout(resolve, 100))
+        try {
+          // Upload to backend
+          const response = await apiService.uploadDocument(file)
+          
+          if (response.success) {
+            // Update progress
+            setUploadProgress(((i + 1) / files.length) * 100)
+            
+            // Update status to completed
+            setUploadedFiles((prev) => 
+              prev.map((f) => 
+                f.name === file.name ? { ...f, status: "completed" } : f
+              )
+            )
+            
+            console.log(`Successfully uploaded: ${file.name}`, response.data)
+          } else {
+            throw new Error(response.message || 'Upload failed')
+          }
+        } catch (error) {
+          console.error(`Upload error for ${file.name}:`, error)
+          
+          // Update status to error
+          setUploadedFiles((prev) => 
+            prev.map((f) => 
+              f.name === file.name ? { ...f, status: "error" } : f
+            )
+          )
+        }
       }
-
-      // Simulate processing completion
-      await new Promise((resolve) => setTimeout(resolve, 1000))
-      setUploadedFiles((prev) => prev.map((f) => (f.name === file.name ? { ...f, status: "completed" } : f)))
+    } catch (error) {
+      console.error('Upload process error:', error)
+    } finally {
+      setUploading(false)
+      setFiles([])
     }
-
-    setUploading(false)
-    setFiles([])
-
-    // TODO: Connect to Python backend API
-    console.log("Files uploaded:", files)
   }
 
   const formatFileSize = (bytes: number) => {

@@ -1,13 +1,17 @@
 "use client"
 
-import { useState } from "react"
+import { useState, useEffect } from "react"
 import { Button } from "../../components/ui/button"
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card"
 import { Progress } from "@/components/ui/progress"
 import { Brain, ArrowLeft, RotateCcw, Eye, EyeOff, CheckCircle, XCircle, Clock } from "lucide-react"
 import Link from "next/link"
+import { apiService } from "@/lib/api"
+import { Flashcard, FlashcardSession } from "@/types/api"
+import { useAsyncApi } from "@/hooks/useApi"
 
 export default function FlashcardsPage() {
+  const [flashcards, setFlashcards] = useState<Flashcard[]>([])
   const [currentCard, setCurrentCard] = useState(0)
   const [showAnswer, setShowAnswer] = useState(false)
   const [studySession, setStudySession] = useState({
@@ -15,66 +19,171 @@ export default function FlashcardsPage() {
     incorrect: 0,
     total: 0,
   })
+  const [loading, setLoading] = useState(true)
+  const [error, setError] = useState<string | null>(null)
+  const [sessionStartTime, setSessionStartTime] = useState(Date.now())
+  const [cardStartTime, setCardStartTime] = useState(Date.now())
+  
+  // Get document ID from URL or use default for demo
+  const documentId = "demo-document" // This should come from router params in real app
 
-  // Mock flashcards data
-  const flashcards = [
-    {
-      id: 1,
-      question: "สมการเชิงเส้นคืออะไร?",
-      answer: "สมการเชิงเส้นคือสมการที่มีตัวแปรยกกำลังหนึ่ง และสามารถเขียนในรูป ax + b = 0 โดยที่ a และ b เป็นค่าคงที่ และ a ≠ 0",
-      difficulty: "ง่าย",
-      nextReview: "2024-01-15",
-      subject: "คณิตศาสตร์",
-    },
-    {
-      id: 2,
-      question: "กฎของนิวตันข้อที่ 1 คืออะไร?",
-      answer:
-        "กฎของนิวตันข้อที่ 1 หรือกฎความเฉื่อย กล่าวว่า วัตถุที่อยู่นิ่งจะอยู่นิ่งต่อไป และวัตถุที่เคลื่อนที่จะเคลื่อนที่ด้วยความเร็วคงที่ในแนวเส้นตรง เว้นแต่จะมีแรงภายนอกมากระทำ",
-      difficulty: "ปานกลาง",
-      nextReview: "2024-01-16",
-      subject: "ฟิสิกส์",
-    },
-    {
-      id: 3,
-      question: "โครงสร้างของอะตอมประกอบด้วยอะไรบ้าง?",
-      answer:
-        "อะตอมประกอบด้วย 3 ส่วนหลัก คือ 1) นิวเคลียส (ประกอบด้วยโปรตอนและนิวตรอน) 2) อิเล็กตรอนที่โคจรรอบนิวเคลียส 3) พื้นที่ว่างระหว่างนิวเคลียสกับอิเล็กตรอน",
-      difficulty: "ยาก",
-      nextReview: "2024-01-17",
-      subject: "เคมี",
-    },
-  ]
-
-  const handleAnswer = (difficulty: "easy" | "medium" | "hard") => {
-    if (difficulty === "easy") {
-      setStudySession((prev) => ({ ...prev, correct: prev.correct + 1, total: prev.total + 1 }))
-    } else {
-      setStudySession((prev) => ({ ...prev, incorrect: prev.incorrect + 1, total: prev.total + 1 }))
+  // Load flashcards from backend
+  useEffect(() => {
+    const loadFlashcards = async () => {
+      try {
+        setLoading(true)
+        const response = await apiService.getReviewSession(documentId, 10)
+        
+        if (response.success && response.data) {
+          setFlashcards(response.data.cards)
+          setCurrentCard(0)
+          setShowAnswer(false)
+          setSessionStartTime(Date.now())
+          setCardStartTime(Date.now())
+        } else {
+          throw new Error(response.message || 'Failed to load flashcards')
+        }
+      } catch (error) {
+        console.error('Error loading flashcards:', error)
+        setError(error instanceof Error ? error.message : 'Failed to load flashcards')
+        
+        // Fallback to mock data for demo
+        const mockCards: Flashcard[] = [
+          {
+            card_id: "1",
+            document_id: documentId,
+            question: "สมการเชิงเส้นคืออะไร?",
+            answer: "สมการเชิงเส้นคือสมการที่มีตัวแปรยกกำลังหนึ่ง และสามารถเขียนในรูป ax + b = 0 โดยที่ a และ b เป็นค่าคงที่ และ a ≠ 0",
+            difficulty: "easy",
+            ease_factor: 2.5,
+            interval: 1,
+            next_review: "2024-01-15",
+            review_count: 0
+          },
+          {
+            card_id: "2",
+            document_id: documentId,
+            question: "กฎของนิวตันข้อที่ 1 คืออะไร?",
+            answer: "กฎของนิวตันข้อที่ 1 หรือกฎความเฉื่อย กล่าวว่า วัตถุที่อยู่นิ่งจะอยู่นิ่งต่อไป และวัตถุที่เคลื่อนที่จะเคลื่อนที่ด้วยความเร็วคงที่ในแนวเส้นตรง เว้นแต่จะมีแรงภายนอกมากระทำ",
+            difficulty: "medium",
+            ease_factor: 2.5,
+            interval: 3,
+            next_review: "2024-01-16",
+            review_count: 1
+          }
+        ]
+        setFlashcards(mockCards)
+      } finally {
+        setLoading(false)
+      }
     }
 
-    // Move to next card
-    if (currentCard < flashcards.length - 1) {
-      setCurrentCard(currentCard + 1)
-      setShowAnswer(false)
-    } else {
-      // End of session
-      alert(
-        `เสร็จสิ้นการทบทวน!\nถูก: ${studySession.correct + (difficulty === "easy" ? 1 : 0)}\nผิด: ${studySession.incorrect + (difficulty === "easy" ? 0 : 1)}`,
-      )
-    }
+    loadFlashcards()
+  }, [documentId])
 
-    // TODO: Send to Python backend for spaced repetition algorithm
-    console.log("Answer recorded:", { cardId: flashcards[currentCard].id, difficulty })
+  const handleAnswer = async (difficulty: "easy" | "medium" | "hard") => {
+    if (flashcards.length === 0) return
+    
+    const qualityMap = { easy: 5, medium: 3, hard: 1 }
+    const timeSpent = Date.now() - cardStartTime
+    
+    try {
+      const answer = {
+        card_id: flashcards[currentCard].card_id,
+        quality: qualityMap[difficulty],
+        time_taken: timeSpent,
+        user_answer: "" // Could be enhanced to capture user input
+      }
+
+      const response = await apiService.submitFlashcardAnswer(answer)
+      
+      if (response.success) {
+        // Update session stats
+        if (difficulty === "easy") {
+          setStudySession((prev) => ({ ...prev, correct: prev.correct + 1, total: prev.total + 1 }))
+        } else {
+          setStudySession((prev) => ({ ...prev, incorrect: prev.incorrect + 1, total: prev.total + 1 }))
+        }
+        
+        // Move to next card or show completion
+        if (currentCard < flashcards.length - 1) {
+          setCurrentCard(currentCard + 1)
+          setShowAnswer(false)
+          setCardStartTime(Date.now())
+        } else {
+          // End of session
+          const totalTime = Date.now() - sessionStartTime
+          const finalCorrect = studySession.correct + (difficulty === "easy" ? 1 : 0)
+          const finalIncorrect = studySession.incorrect + (difficulty === "easy" ? 0 : 1)
+          
+          alert(
+            `เสร็จสิ้นการทบทวน!\nถูก: ${finalCorrect}\nผิด: ${finalIncorrect}\nเวลาที่ใช้: ${Math.round(totalTime / 1000)} วินาที`
+          )
+        }
+      }
+    } catch (error) {
+      console.error('Error submitting answer:', error)
+      // Still allow progression even if API fails
+      if (currentCard < flashcards.length - 1) {
+        setCurrentCard(currentCard + 1)
+        setShowAnswer(false)
+        setCardStartTime(Date.now())
+      }
+    }
   }
 
   const resetSession = () => {
     setCurrentCard(0)
     setShowAnswer(false)
     setStudySession({ correct: 0, incorrect: 0, total: 0 })
+    setSessionStartTime(Date.now())
+    setCardStartTime(Date.now())
   }
 
-  const progress = ((currentCard + 1) / flashcards.length) * 100
+  const progress = flashcards.length > 0 ? ((currentCard + 1) / flashcards.length) * 100 : 0
+  
+  if (loading) {
+    return (
+      <div className="min-h-screen bg-gray-50 flex items-center justify-center">
+        <div className="text-center">
+          <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-blue-600 mx-auto mb-4"></div>
+          <p className="text-gray-600">กำลังโหลดแฟลชการ์ด...</p>
+        </div>
+      </div>
+    )
+  }
+  
+  if (error) {
+    return (
+      <div className="min-h-screen bg-gray-50 flex items-center justify-center">
+        <div className="text-center">
+          <XCircle className="h-12 w-12 text-red-600 mx-auto mb-4" />
+          <h2 className="text-xl font-semibold text-gray-900 mb-2">เกิดข้อผิดพลาด</h2>
+          <p className="text-gray-600 mb-4">{error}</p>
+          <Button onClick={() => window.location.reload()} className="bg-blue-600 hover:bg-blue-700">
+            ลองใหม่
+          </Button>
+        </div>
+      </div>
+    )
+  }
+  
+  if (flashcards.length === 0) {
+    return (
+      <div className="min-h-screen bg-gray-50 flex items-center justify-center">
+        <div className="text-center">
+          <Brain className="h-12 w-12 text-gray-400 mx-auto mb-4" />
+          <h2 className="text-xl font-semibold text-gray-900 mb-2">ไม่พบแฟลชการ์ด</h2>
+          <p className="text-gray-600 mb-4">กรุณาอัปโหลดเอกสารและสร้างแฟลชการ์ดก่อน</p>
+          <Link href="/upload">
+            <Button className="bg-blue-600 hover:bg-blue-700">
+              อัปโหลดเอกสาร
+            </Button>
+          </Link>
+        </div>
+      </div>
+    )
+  }
 
   return (
     <div className="min-h-screen bg-gray-50">
@@ -159,10 +268,10 @@ export default function FlashcardsPage() {
               <CardHeader>
                 <div className="flex justify-between items-center">
                   <div>
-                    <CardTitle className="text-lg">{flashcards[currentCard].subject}</CardTitle>
+                    <CardTitle className="text-lg">แฟลชการ์ด</CardTitle>
                     <CardDescription>
                       ระดับความยาก: {flashcards[currentCard].difficulty} | ทบทวนครั้งถัดไป:{" "}
-                      {flashcards[currentCard].nextReview}
+                      {flashcards[currentCard].next_review}
                     </CardDescription>
                   </div>
                   <Button

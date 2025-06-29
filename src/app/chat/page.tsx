@@ -8,13 +8,20 @@ import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
 import { Input } from "@/components/ui/input"
 import { Brain, ArrowLeft, Send, User, Bot, FileText, Loader2 } from "lucide-react"
 import Link from "next/link"
+import { apiService } from "@/lib/api"
+import { ChatMessage } from "@/types/api"
 
 interface Message {
   id: string
   type: "user" | "ai"
   content: string
   timestamp: Date
-  sources?: string[]
+  sources?: Array<{
+    chunk_id: string
+    text: string
+    similarity: number
+  }>
+  confidence?: number
 }
 
 export default function ChatPage() {
@@ -28,7 +35,44 @@ export default function ChatPage() {
   ])
   const [inputMessage, setInputMessage] = useState("")
   const [isLoading, setIsLoading] = useState(false)
+  const [sessionId, setSessionId] = useState<string | undefined>(undefined)
   const messagesEndRef = useRef<HTMLDivElement>(null)
+  
+  // Get document ID from URL or use default for demo
+  const documentId = "demo-document" // This should come from router params in real app
+  
+  // Load chat history on component mount
+  useEffect(() => {
+    const loadChatHistory = async () => {
+      try {
+        const response = await apiService.getChatHistory(documentId)
+        if (response.success && response.data) {
+          const historyMessages: Message[] = response.data.map((msg: ChatMessage) => ([
+            {
+              id: `user-${msg.chat_id}`,
+              type: "user" as const,
+              content: msg.question,
+              timestamp: new Date(msg.created_at),
+            },
+            {
+              id: `ai-${msg.chat_id}`,
+              type: "ai" as const,
+              content: msg.answer,
+              timestamp: new Date(msg.created_at),
+              sources: msg.sources,
+              confidence: msg.confidence,
+            }
+          ])).flat()
+          
+          setMessages(prev => [...prev, ...historyMessages])
+        }
+      } catch (error) {
+        console.error('Failed to load chat history:', error)
+      }
+    }
+
+    loadChatHistory()
+  }, [documentId])
 
   const scrollToBottom = () => {
     messagesEndRef.current?.scrollIntoView({ behavior: "smooth" })
@@ -49,32 +93,55 @@ export default function ChatPage() {
     }
 
     setMessages((prev) => [...prev, userMessage])
+    const currentQuestion = inputMessage
     setInputMessage("")
     setIsLoading(true)
 
-    // TODO: Send to Python backend RAG system
     try {
-      // Simulate API call
-      await new Promise((resolve) => setTimeout(resolve, 2000))
+      const response = await apiService.askQuestion(
+        documentId,
+        currentQuestion,
+        sessionId
+      )
 
-      const aiResponse: Message = {
-        id: (Date.now() + 1).toString(),
-        type: "ai",
-        content: `ขอบคุณสำหรับคำถาม "${inputMessage}" ครับ\n\nจากการค้นหาในเอกสารที่คุณอัปโหลดไว้ ผมพบข้อมูลที่เกี่ยวข้องดังนี้:\n\n• สมการเชิงเส้นคือสมการที่มีตัวแปรยกกำลังหนึ่ง\n• สามารถเขียนในรูปแบบทั่วไปได้เป็น ax + b = 0\n• วิธีการแก้คือการหาค่า x ที่ทำให้สมการเป็นจริง\n\nหากต้องการข้อมูลเพิ่มเติมหรือมีคำถามอื่น สามารถถามได้เลยครับ`,
-        timestamp: new Date(),
-        sources: ["คณิตศาสตร์_บทที่5.pdf", "สมการเชิงเส้น_สรุป.docx"],
+      if (response.success && response.data) {
+        const aiMessage: Message = {
+          id: (Date.now() + 1).toString(),
+          type: "ai",
+          content: response.data.answer,
+          timestamp: new Date(),
+          sources: response.data.sources,
+          confidence: response.data.confidence
+        }
+
+        setMessages((prev) => [...prev, aiMessage])
+        
+        // Update session ID if provided
+        if (response.data.session_id) {
+          setSessionId(response.data.session_id)
+        }
+      } else {
+        throw new Error(response.message || 'Failed to get response')
       }
-
-      setMessages((prev) => [...prev, aiResponse])
     } catch (error) {
       console.error("Error sending message:", error)
-      const errorMessage: Message = {
+      
+      // Fallback response for demo
+      const fallbackResponse: Message = {
         id: (Date.now() + 1).toString(),
         type: "ai",
-        content: "ขออภัยครับ เกิดข้อผิดพลาดในการประมวลผล กรุณาลองใหม่อีกครั้ง",
+        content: `ขอบคุณสำหรับคำถาม "${currentQuestion}" ครับ\n\nขออภัย ขณะนี้ระบบยังไม่สามารถเชื่อมต่อกับ backend ได้ นี่เป็นการตอบสนองแบบตัวอย่าง:\n\n• ระบบ RAG จะค้นหาข้อมูลที่เกี่ยวข้องในเอกสาร\n• วิเคราะห์บริบทและสร้างคำตอบที่แม่นยำ\n• แสดงแหล่งข้อมูลอ้างอิงพร้อมระดับความเชื่อมั่น\n\nกรุณาตรวจสอบการเชื่อมต่อ backend และลองใหม่อีกครั้ง`,
         timestamp: new Date(),
+        sources: [
+          {
+            chunk_id: "demo-chunk-1",
+            text: "ข้อมูลตัวอย่างจากเอกสาร...",
+            similarity: 0.85
+          }
+        ],
+        confidence: 0.7
       }
-      setMessages((prev) => [...prev, errorMessage])
+      setMessages((prev) => [...prev, fallbackResponse])
     } finally {
       setIsLoading(false)
     }
@@ -150,17 +217,39 @@ export default function ChatPage() {
                         }`}
                       >
                         <p className="whitespace-pre-wrap">{message.content}</p>
-                        {message.sources && (
+                        {message.sources && message.sources.length > 0 && (
                           <div className="mt-3 pt-3 border-t border-gray-300">
                             <p className="text-sm font-medium mb-2">แหล่งข้อมูล:</p>
-                            <div className="space-y-1">
+                            <div className="space-y-2">
                               {message.sources.map((source, index) => (
-                                <div key={index} className="flex items-center space-x-2 text-sm">
-                                  <FileText className="h-3 w-3" />
-                                  <span>{source}</span>
+                                <div key={index} className="text-sm bg-white/20 rounded p-2">
+                                  <div className="flex items-center space-x-2 mb-1">
+                                    <FileText className="h-3 w-3" />
+                                    <span className="font-medium">ส่วนที่ {index + 1}</span>
+                                    {typeof source === 'object' && source.similarity && (
+                                      <span className="text-xs opacity-75">
+                                        ({Math.round(source.similarity * 100)}% ความเกี่ยวข้อง)
+                                      </span>
+                                    )}
+                                  </div>
+                                  {typeof source === 'object' && source.text && (
+                                    <p className="text-xs opacity-90 line-clamp-2">
+                                      {source.text.length > 100 
+                                        ? source.text.substring(0, 100) + "..." 
+                                        : source.text}
+                                    </p>
+                                  )}
+                                  {typeof source === 'string' && (
+                                    <span className="text-xs">{source}</span>
+                                  )}
                                 </div>
                               ))}
                             </div>
+                            {message.confidence && (
+                              <div className="mt-2 text-xs opacity-75">
+                                ความมั่นใจ: {Math.round(message.confidence * 100)}%
+                              </div>
+                            )}
                           </div>
                         )}
                         <p className="text-xs mt-2 opacity-75">{formatTime(message.timestamp)}</p>

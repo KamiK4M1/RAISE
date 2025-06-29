@@ -1,6 +1,6 @@
 "use client"
 
-import { useState } from "react"
+import { useState, useEffect } from "react"
 import { Button } from "@/components/ui/button"
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card"
 import { Progress } from "@/components/ui/progress"
@@ -8,13 +8,23 @@ import { RadioGroup, RadioGroupItem } from "@/components/ui/radio-group"
 import { Label } from "@/components/ui/label"
 import { Brain, ArrowLeft, CheckCircle, XCircle, Clock, Award } from "lucide-react"
 import Link from "next/link"
+import { apiService } from "@/lib/api"
+import { Quiz, QuizQuestion, QuizResults } from "@/types/api"
 
 export default function QuizPage() {
+  const [quiz, setQuiz] = useState<Quiz | null>(null)
   const [currentQuestion, setCurrentQuestion] = useState(0)
   const [selectedAnswer, setSelectedAnswer] = useState("")
   const [answers, setAnswers] = useState<string[]>([])
   const [showResults, setShowResults] = useState(false)
+  const [quizResults, setQuizResults] = useState<QuizResults | null>(null)
   const [timeLeft, setTimeLeft] = useState(300) // 5 minutes
+  const [loading, setLoading] = useState(true)
+  const [error, setError] = useState<string | null>(null)
+  const [startTime, setStartTime] = useState(Date.now())
+  
+  // Get document ID from URL or use default for demo
+  const documentId = "demo-document" // This should come from router params in real app
 
   // Mock quiz data covering Bloom's Taxonomy levels
   const quiz = {
