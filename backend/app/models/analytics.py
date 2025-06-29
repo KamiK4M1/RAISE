@@ -107,3 +107,41 @@ class MonthlyReport(BaseModel):
     learning_milestones: List[str]
     areas_of_improvement: List[str]
     recommended_focus: List[str]
+
+class StudyRecommendation(BaseModel):
+    type: str
+    title: str
+    description: str
+    priority: str
+    created_at: datetime = Field(default_factory=datetime.utcnow)
+
+class LearningSession(BaseModel):
+    id: Optional[PyObjectId] = Field(default_factory=PyObjectId, alias="_id")
+    user_id: str
+    activity_type: str
+    document_id: str
+    duration: int
+    details: Dict[str, any] = {}
+    created_at: datetime = Field(default_factory=datetime.utcnow)
+
+    class Config:
+        populate_by_name = True
+        arbitrary_types_allowed = True
+        json_encoders = {ObjectId: str}
+
+class UserAnalyticsUpdated(BaseModel):
+    user_id: str
+    period_days: int
+    flashcard_stats: Dict[str, any] = {}
+    quiz_stats: Dict[str, any] = {}
+    chat_stats: Dict[str, any] = {}
+    study_patterns: Dict[str, any] = {}
+    learning_progress: Dict[str, any] = {}
+    recommendations: List[StudyRecommendation] = []
+    generated_at: datetime = Field(default_factory=datetime.utcnow)
+
+class AnalyticsResponse(BaseModel):
+    success: bool
+    data: Optional[dict] = None
+    message: str
+    timestamp: str
