@@ -1,6 +1,7 @@
 # FastAPI and Web Server
 fastapi
 uvicorn
+fastapi[standard]
 
 # Pydantic and Environment/Configuration Management
 pydantic
