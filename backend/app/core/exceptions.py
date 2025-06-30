@@ -79,6 +79,11 @@ class RateLimitExceededError(RAISEException):
     def __init__(self, message: str = "คำขอเกินขีดจำกัดที่อนุญาต"):
         super().__init__(message, "RATE_LIMIT_EXCEEDED")
 
+class RAGError(RAISEException):
+    """Exception raised for RAG system errors"""
+    def __init__(self, message: str = "เกิดข้อผิดพลาดในระบบ RAG"):
+        super().__init__(message, "RAG_ERROR")
+
 def create_error_response(code: str, message: str, details: str = None):
     """Create standardized error response"""
     return {
