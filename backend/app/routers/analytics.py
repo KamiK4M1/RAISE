@@ -1,5 +1,5 @@
 from fastapi import APIRouter, HTTPException, Depends, Query
-from typing import Optional, List
+from typing import Any, Dict, List, Optional
 import logging
 from datetime import datetime
 
@@ -21,18 +21,17 @@ async def get_user_analytics(
     """Get comprehensive analytics for the current user"""
     try:
         analytics = await analytics_service.get_user_analytics(user_id, days)
-        
+
         return AnalyticsResponse(
             success=True,
             data=analytics.dict(),
-            message=f"6I-!9%'4@#20+L9IC
-I {days} '1%H2*8*3@#G",
+            message=f"Analytics for the last {days} days retrieved successfully.",
             timestamp=datetime.utcnow().isoformat() + "Z"
         )
-        
+
     except Exception as e:
         logger.error(f"Error getting user analytics: {e}")
-        raise HTTPException(status_code=500, detail="@4I-4%2C2#6I-!9%'4@#20+L")
+        raise HTTPException(status_code=500, detail="Error retrieving user analytics.")
 
 @router.get("/document/{doc_id}", response_model=AnalyticsResponse)
 async def get_document_analytics(
@@ -42,22 +41,22 @@ async def get_document_analytics(
     """Get analytics for a specific document"""
     try:
         analytics = await analytics_service.get_document_analytics(doc_id)
-        
+
         if "error" in analytics:
             raise HTTPException(status_code=404, detail=analytics["error"])
-        
+
         return AnalyticsResponse(
             success=True,
             data=analytics,
-            message="6I-!9%'4@#20+L@-*2#*3@#G",
+            message="Document analytics retrieved successfully.",
             timestamp=datetime.utcnow().isoformat() + "Z"
         )
-        
+
     except HTTPException:
         raise
     except Exception as e:
         logger.error(f"Error getting document analytics: {e}")
-        raise HTTPException(status_code=500, detail="@4I-4%2C2#6I-!9%'4@#20+L@-*2#")
+        raise HTTPException(status_code=500, detail="Error retrieving document analytics.")
 
 @router.get("/progress", response_model=AnalyticsResponse)
 async def get_learning_progress(
@@ -67,7 +66,7 @@ async def get_learning_progress(
     """Get learning progress summary"""
     try:
         analytics = await analytics_service.get_user_analytics(user_id, days)
-        
+
         progress_data = {
             "period_days": days,
             "learning_progress": analytics.learning_progress,
@@ -78,17 +77,17 @@ async def get_learning_progress(
                 analytics.chat_stats.get("total_questions", 0)
             )
         }
-        
+
         return AnalyticsResponse(
             success=True,
             data=progress_data,
-            message="6I-!9%'2!7+I22#@#5"#9I*3@#G",
+            message="Learning progress retrieved successfully.",
             timestamp=datetime.utcnow().isoformat() + "Z"
         )
-        
+
     except Exception as e:
         logger.error(f"Error getting learning progress: {e}")
-        raise HTTPException(status_code=500, detail="@4I-4%2C2#6I-!9%'2!7+I2")
+        raise HTTPException(status_code=500, detail="Error retrieving learning progress.")
 
 @router.get("/recommendations", response_model=AnalyticsResponse)
 async def get_study_recommendations(
@@ -97,20 +96,20 @@ async def get_study_recommendations(
     """Get personalized study recommendations"""
     try:
         analytics = await analytics_service.get_user_analytics(user_id, 30)
-        
+
         return AnalyticsResponse(
             success=True,
             data={
                 "recommendations": [rec.dict() for rec in analytics.recommendations],
                 "total_recommendations": len(analytics.recommendations)
             },
-            message="63A032#@#5"#9I*3@#G",
+            message="Study recommendations retrieved successfully.",
             timestamp=datetime.utcnow().isoformat() + "Z"
         )
-        
+
     except Exception as e:
         logger.error(f"Error getting study recommendations: {e}")
-        raise HTTPException(status_code=500, detail="@4I-4%2C2#63A03")
+        raise HTTPException(status_code=500, detail="Error retrieving study recommendations.")
 
 @router.get("/system", response_model=AnalyticsResponse)
 async def get_system_analytics(
@@ -119,22 +118,22 @@ async def get_system_analytics(
     """Get system-wide analytics"""
     try:
         analytics = await analytics_service.get_system_analytics()
-        
+
         if "error" in analytics:
             raise HTTPException(status_code=500, detail=analytics["error"])
-        
+
         return AnalyticsResponse(
             success=True,
             data=analytics,
-            message="6*44#0*3@#G",
+            message="System analytics retrieved successfully.",
             timestamp=datetime.utcnow().isoformat() + "Z"
         )
-        
+
     except HTTPException:
         raise
     except Exception as e:
         logger.error(f"Error getting system analytics: {e}")
-        raise HTTPException(status_code=500, detail="@4I-4%2C2#6*44#0")
+        raise HTTPException(status_code=500, detail="Error retrieving system analytics.")
 
 @router.post("/track-session", response_model=AnalyticsResponse)
 async def track_learning_session(
@@ -153,7 +152,7 @@ async def track_learning_session(
             duration=duration,
             details=details
         )
-        
+
         return AnalyticsResponse(
             success=True,
             data={
@@ -161,12 +160,10 @@ async def track_learning_session(
                 "activity_type": activity_type,
                 "duration": duration
             },
-            message="16@*
-12#@#5"#9I*3@#G",
+            message="Learning session tracked successfully.",
             timestamp=datetime.utcnow().isoformat() + "Z"
         )
-        
+
     except Exception as e:
         logger.error(f"Error tracking learning session: {e}")
-        raise HTTPException(status_code=400, detail="@4I-4%2C2#16@*
-1")
+        raise HTTPException(status_code=400, detail="Error tracking learning session.")

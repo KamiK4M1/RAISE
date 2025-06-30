@@ -5,18 +5,18 @@ from contextlib import asynccontextmanager
 import uvicorn
 
 from app.config import settings
-from app.database.mongodb import connect_to_mongo, close_mongo_connection
-from app.routers import documents, flashcards, quiz, chat, analytics
+from app.core.database import connect_database, disconnect_database
+from app.routers import documents, flashcards, quiz, chat, analytics, auth
 from app.core.exceptions import setup_exception_handlers
 
 
 @asynccontextmanager
 async def lifespan(app: FastAPI):
     # Startup
-    await connect_to_mongo()
+    await connect_database()
     yield
     # Shutdown
-    await close_mongo_connection()
+    await disconnect_database()
 
 
 app = FastAPI(
@@ -44,6 +44,7 @@ app.add_middleware(
 setup_exception_handlers(app)
 
 # Include routers
+app.include_router(auth.router, prefix="/api/auth", tags=["authentication"])
 app.include_router(documents.router, prefix="/api/documents", tags=["documents"])
 app.include_router(flashcards.router, prefix="/api/flashcards", tags=["flashcards"])
 app.include_router(quiz.router, prefix="/api/quiz", tags=["quiz"])

@@ -1,77 +1,80 @@
 from pydantic import BaseModel, Field, ConfigDict
 from typing import Optional, List
 from datetime import datetime
-from bson import ObjectId
-
-class PyObjectId(ObjectId):
-    @classmethod
-    def __get_validators__(cls):
-        yield cls.validate
-
-    @classmethod
-    def validate(cls, v, info=None):
-        if not ObjectId.is_valid(v):
-            raise ValueError("Invalid objectid")
-        return ObjectId(v)
-
-    @classmethod
-    def __get_pydantic_json_schema__(cls, field_schema, handler):
-        field_schema.update(type="string")
-        return field_schema
 
 class FlashcardModel(BaseModel):
+    """Flashcard model matching Prisma schema"""
     model_config = ConfigDict(
-        populate_by_name=True,
-        arbitrary_types_allowed=True,
-        json_encoders={ObjectId: str}
+        from_attributes=True,
+        populate_by_name=True
     )
     
-    id: Optional[PyObjectId] = Field(default_factory=PyObjectId, alias="_id")
-    card_id: str
-    document_id: str
-    question: str
-    answer: str
-    difficulty: str = "medium"  # easy, medium, hard
-    ease_factor: float = 2.5  # SM-2 algorithm default
-    interval: int = 1  # days until next review
-    next_review: datetime = Field(default_factory=datetime.utcnow)
-    review_count: int = 0
-    correct_count: int = 0
-    incorrect_count: int = 0
-    created_at: datetime = Field(default_factory=datetime.utcnow)
-    updated_at: datetime = Field(default_factory=datetime.utcnow)
+    id: str = Field(..., description="Flashcard ID")
+    userId: str = Field(..., description="User ID")
+    documentId: str = Field(..., description="Document ID")
+    question: str = Field(..., description="Flashcard question")
+    answer: str = Field(..., description="Flashcard answer")
+    difficulty: str = Field(default="medium", description="Difficulty level")
+    easeFactor: float = Field(default=2.5, description="SM-2 ease factor")
+    interval: int = Field(default=1, description="Days until next review")
+    nextReview: datetime = Field(default_factory=datetime.utcnow, description="Next review date")
+    reviewCount: int = Field(default=0, description="Number of reviews")
+    createdAt: datetime = Field(default_factory=datetime.utcnow)
+    updatedAt: datetime = Field(default_factory=datetime.utcnow)
 
 class FlashcardGenerateRequest(BaseModel):
+    """Request for generating flashcards"""
     count: Optional[int] = 10
     difficulty: Optional[str] = "medium"
-    topics: Optional[List[str]] = []
+    topics: Optional[List[str]] = Field(default_factory=list)
+    
+class FlashcardCreate(BaseModel):
+    """Schema for creating a flashcard"""
+    userId: str
+    documentId: str
+    question: str
+    answer: str
+    difficulty: str = "medium"
+    
+class FlashcardUpdate(BaseModel):
+    """Schema for updating a flashcard"""
+    question: Optional[str] = None
+    answer: Optional[str] = None
+    difficulty: Optional[str] = None
+    easeFactor: Optional[float] = None
+    interval: Optional[int] = None
+    nextReview: Optional[datetime] = None
 
 class FlashcardSession(BaseModel):
-    session_id: str
-    document_id: str
+    """Flashcard study session"""
+    sessionId: str
+    documentId: str
     cards: List[FlashcardModel]
-    current_index: int = 0
-    started_at: datetime = Field(default_factory=datetime.utcnow)
+    currentIndex: int = 0
+    startedAt: datetime = Field(default_factory=datetime.utcnow)
 
 class FlashcardAnswer(BaseModel):
-    card_id: str
+    """Flashcard answer submission"""
+    cardId: str
     quality: int  # 0-5 (SM-2 algorithm)
-    time_taken: int  # seconds
-    user_answer: Optional[str] = None
+    timeTaken: int  # seconds
+    userAnswer: Optional[str] = None
 
 class FlashcardReview(BaseModel):
-    card_id: str
-    next_review: datetime
-    ease_factor: float
+    """Flashcard review result"""
+    cardId: str
+    nextReview: datetime
+    easeFactor: float
     interval: int
 
 class FlashcardStats(BaseModel):
-    total_cards: int
-    due_today: int
+    """Flashcard statistics"""
+    totalCards: int
+    dueToday: int
     learning: int
     reviewing: int
     mastered: int
-    average_ease: float
+    averageEase: float
 
 class FlashcardResponse(BaseModel):
     success: bool

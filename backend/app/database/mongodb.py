@@ -1,92 +1,54 @@
-from motor.motor_asyncio import AsyncIOMotorClient
-from pymongo.errors import ConnectionFailure
+"""
+Prisma database operations - replaces Motor/MongoDB
+This module provides Prisma client access and legacy compatibility functions
+"""
 import logging
-from app.config import settings
+from app.core.database import get_prisma_client, connect_database, disconnect_database
 
 logger = logging.getLogger(__name__)
 
-class Database:
-    client: AsyncIOMotorClient = None
-    database = None
-
-db = Database()
-
-async def get_database():
-    return db.database
-
-# ADD THIS NEW FUNCTION that was missing
-def get_collection(collection_name: str):
-    """Get a collection by name"""
-    if db.database is None:
-        raise RuntimeError("Database not initialized. Call connect_to_mongo() first.")
-    return db.database[collection_name]
-
+# Legacy compatibility functions for existing code
 async def connect_to_mongo():
-    try:
-        db.client = AsyncIOMotorClient(settings.mongodb_uri)
-        db.database = db.client[settings.database_name]
-        
-        # Test connection
-        await db.client.admin.command('ping')
-        logger.info("Successfully connected to MongoDB")
-        
-        # Create indexes
-        await create_indexes()
-        
-    except ConnectionFailure as e:
-        logger.error(f"Failed to connect to MongoDB: {e}")
-        raise e
+    """Legacy compatibility - use Prisma instead"""
+    await connect_database()
 
 async def close_mongo_connection():
-    if db.client:
-        db.client.close()
-        logger.info("Disconnected from MongoDB")
+    """Legacy compatibility - use Prisma instead"""
+    await disconnect_database()
 
-async def create_indexes():
-    """Create necessary indexes for better performance"""
-    try:
-        # Documents collection indexes
-        await db.database.documents.create_index("user_id")
-        await db.database.documents.create_index("document_id")
-        
-        # Flashcards collection indexes
-        await db.database.flashcards.create_index("document_id")
-        await db.database.flashcards.create_index("next_review")
-        await db.database.flashcards.create_index([("document_id", 1), ("next_review", 1)])
-        
-        # Quiz attempts collection indexes
-        await db.database.quiz_attempts.create_index("user_id")
-        await db.database.quiz_attempts.create_index("quiz_id")
-        
-        # User progress collection indexes
-        await db.database.user_progress.create_index([("user_id", 1), ("document_id", 1)])
-        
-        # Chat history collection indexes
-        await db.database.chat_history.create_index("user_id")
-        await db.database.chat_history.create_index("created_at")
-        
-        # Vector search index for document chunks (Atlas Vector Search)
-        # This needs to be created through Atlas UI or MongoDB Compass
-        logger.info("Indexes created successfully")
-        
-    except Exception as e:
-        logger.error(f"Error creating indexes: {e}")
+async def get_database():
+    """Legacy compatibility - returns Prisma client"""
+    return await get_prisma_client()
 
-# Collection getters (keep existing ones)
+def get_collection(collection_name: str):
+    """
+    Legacy compatibility function - no longer needed with Prisma
+    Prisma models are accessed directly via prisma.model_name
+    """
+    logger.warning(f"get_collection('{collection_name}') is deprecated. Use Prisma models directly.")
+    raise NotImplementedError("Use Prisma models directly instead of collections")
+
+# Legacy collection getters - deprecated, use Prisma models instead
 async def get_documents_collection():
-    return db.database.documents
+    logger.warning("get_documents_collection() is deprecated. Use prisma.document instead.")
+    raise NotImplementedError("Use prisma.document instead")
 
 async def get_flashcards_collection():
-    return db.database.flashcards
+    logger.warning("get_flashcards_collection() is deprecated. Use prisma.flashcard instead.")
+    raise NotImplementedError("Use prisma.flashcard instead")
 
 async def get_quizzes_collection():
-    return db.database.quizzes
+    logger.warning("get_quizzes_collection() is deprecated. Use prisma.quiz instead.")
+    raise NotImplementedError("Use prisma.quiz instead")
 
 async def get_quiz_attempts_collection():
-    return db.database.quiz_attempts
+    logger.warning("get_quiz_attempts_collection() is deprecated. Use prisma.quizattempt instead.")
+    raise NotImplementedError("Use prisma.quizattempt instead")
 
 async def get_user_progress_collection():
-    return db.database.user_progress
+    logger.warning("get_user_progress_collection() is deprecated. Use custom model if needed.")
+    raise NotImplementedError("Use custom model if needed")
 
 async def get_chat_history_collection():
-    return db.database.chat_history
+    logger.warning("get_chat_history_collection() is deprecated. Use prisma.chatmessage instead.")
+    raise NotImplementedError("Use prisma.chatmessage instead")

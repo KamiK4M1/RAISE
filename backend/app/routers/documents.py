@@ -11,15 +11,13 @@ from app.models.document import (
 from app.services.document_processor import document_processor
 from app.utils.file_handler import file_handler
 from app.core.exceptions import FileUploadError, DocumentProcessingError
+from app.core.dependencies import get_current_user_id
 
 logger = logging.getLogger(__name__)
 
 router = APIRouter()
 
-# Temporary user ID - in production, this should come from JWT token
-async def get_current_user_id() -> str:
-    # TODO: Implement JWT token validation
-    return "temp_user_123"
+# Authentication is now handled by the dependency
 
 @router.post("/upload", response_model=DocumentResponse)
 async def upload_document(
@@ -46,7 +44,8 @@ async def upload_document(
             filename=file.filename,
             file_type=file_type,
             file_size=file.size,
-            user_id=user_id
+            user_id=user_id,
+            title=file.filename  # Use filename as title by default
         )
         
         return DocumentResponse(

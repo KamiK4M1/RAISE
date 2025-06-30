@@ -49,6 +49,36 @@ class ValidationError(RAISEException):
     def __init__(self, message: str = "ข้อมูลไม่ถูกต้อง"):
         super().__init__(message, "VALIDATION_ERROR")
 
+class UserNotFoundError(RAISEException):
+    """Exception raised when user is not found"""
+    def __init__(self, message: str = "ไม่พบผู้ใช้งาน"):
+        super().__init__(message, "USER_NOT_FOUND")
+
+class UserAlreadyExistsError(RAISEException):
+    """Exception raised when user already exists"""
+    def __init__(self, message: str = "ผู้ใช้งานนี้มีอยู่ในระบบแล้ว"):
+        super().__init__(message, "USER_ALREADY_EXISTS")
+
+class InvalidCredentialsError(RAISEException):
+    """Exception raised for invalid login credentials"""
+    def __init__(self, message: str = "อีเมลหรือรหัสผ่านไม่ถูกต้อง"):
+        super().__init__(message, "INVALID_CREDENTIALS")
+
+class TokenExpiredError(RAISEException):
+    """Exception raised when JWT token is expired"""
+    def __init__(self, message: str = "Token หมดอายุแล้ว"):
+        super().__init__(message, "TOKEN_EXPIRED")
+
+class InsufficientPermissionsError(RAISEException):
+    """Exception raised when user lacks required permissions"""
+    def __init__(self, message: str = "ไม่มีสิทธิ์เข้าถึงข้อมูลนี้"):
+        super().__init__(message, "INSUFFICIENT_PERMISSIONS")
+
+class RateLimitExceededError(RAISEException):
+    """Exception raised when rate limit is exceeded"""
+    def __init__(self, message: str = "คำขอเกินขีดจำกัดที่อนุญาต"):
+        super().__init__(message, "RATE_LIMIT_EXCEEDED")
+
 def create_error_response(code: str, message: str, details: str = None):
     """Create standardized error response"""
     return {

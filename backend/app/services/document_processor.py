@@ -3,8 +3,8 @@ from datetime import datetime
 from typing import List, Dict, Any, Optional
 import logging
 
-from app.database.mongodb import get_documents_collection
-from app.models.document import DocumentModel, DocumentChunk
+from app.core.database import get_prisma_client
+from app.models.document import DocumentModel, DocumentChunk, DocumentCreate, DocumentUpdate
 from app.utils.file_handler import file_handler
 from app.core.embeddings import embedding_service
 from app.core.exceptions import DocumentProcessingError, DatabaseError
@@ -14,7 +14,8 @@ logger = logging.getLogger(__name__)
 
 class DocumentProcessor:
     def __init__(self):
-        pass
+        # Temporary cache for document chunks (could be Redis in production)
+        self._document_chunks_cache: Dict[str, List[DocumentChunk]] = {}
 
     async def process_document(
         self, 
@@ -23,11 +24,11 @@ class DocumentProcessor:
         file_type: str, 
         file_size: int, 
         user_id: str,
+        title: str = None,
         chunk_size: int = 1000,
         chunk_overlap: int = 200
     ) -> str:
         """Process uploaded document and store in database"""
-        document_id = str(uuid.uuid4())
         
         try:
             # Extract text from file
@@ -37,33 +38,34 @@ class DocumentProcessor:
             if not content.strip():
                 raise DocumentProcessingError("ไม่สามารถดึงเนื้อหาจากไฟล์ได้")
             
-            # Create document record
-            document = DocumentModel(
-                document_id=document_id,
-                user_id=user_id,
+            # Create document record using Prisma
+            prisma = await get_prisma_client()
+            
+            document_data = DocumentCreate(
+                userId=user_id,
+                title=title or filename,
                 filename=filename,
                 content=content,
-                file_type=file_type,
-                file_size=file_size,
-                upload_path=file_path,
-                processing_status="processing",
-                created_at=datetime.utcnow(),
-                updated_at=datetime.utcnow()
+                fileType=file_type,
+                fileSize=file_size,
+                uploadPath=file_path
             )
             
             # Save initial document record
-            collection = await get_documents_collection()
-            await collection.insert_one(document.dict(by_alias=True, exclude={"id"}))
+            document = await prisma.document.create(
+                data=document_data.model_dump()
+            )
             
             # Process in background (chunk and embed)
-            await self._process_chunks(document_id, content, chunk_size, chunk_overlap)
+            await self._process_chunks(document.id, content, chunk_size, chunk_overlap)
             
-            return document_id
+            return document.id
             
         except Exception as e:
             logger.error(f"Document processing error: {e}")
-            # Update document status to failed
-            await self._update_document_status(document_id, "failed", str(e))
+            # Update document status to failed if document was created
+            if 'document' in locals():
+                await self._update_document_status(document.id, "failed", str(e))
             raise DocumentProcessingError(f"เกิดข้อผิดพลาดในการประมวลผลเอกสาร: {str(e)}")
 
     async def _process_chunks(self, document_id: str, content: str, chunk_size: int, chunk_overlap: int):
@@ -91,19 +93,19 @@ class DocumentProcessor:
                 )
                 document_chunks.append(document_chunk)
             
-            # Update document with chunks
-            collection = await get_documents_collection()
-            await collection.update_one(
-                {"document_id": document_id},
-                {
-                    "$set": {
-                        "chunks": [chunk.dict() for chunk in document_chunks],
-                        "processing_status": "completed",
-                        "processed_at": datetime.utcnow(),
-                        "updated_at": datetime.utcnow()
-                    }
+            # Update document status to completed (chunks will be stored separately if needed)
+            prisma = await get_prisma_client()
+            await prisma.document.update(
+                where={"id": document_id},
+                data={
+                    "status": "completed",
+                    "updatedAt": datetime.utcnow()
                 }
             )
+            
+            # Store chunks in memory/cache for now (could be separate model later)
+            # This maintains compatibility with existing search functionality
+            self._document_chunks_cache[document_id] = document_chunks
             
             logger.info(f"Document {document_id} processed successfully with {len(document_chunks)} chunks")
             
@@ -115,18 +117,15 @@ class DocumentProcessor:
     async def _update_document_status(self, document_id: str, status: str, error_message: str = None):
         """Update document processing status"""
         try:
-            collection = await get_documents_collection()
+            prisma = await get_prisma_client()
             update_data = {
-                "processing_status": status,
-                "updated_at": datetime.utcnow()
+                "status": status,
+                "updatedAt": datetime.utcnow()
             }
             
-            if error_message:
-                update_data["error_message"] = error_message
-            
-            await collection.update_one(
-                {"document_id": document_id},
-                {"$set": update_data}
+            await prisma.document.update(
+                where={"id": document_id},
+                data=update_data
             )
             
         except Exception as e:
@@ -135,14 +134,30 @@ class DocumentProcessor:
     async def get_document(self, document_id: str, user_id: str) -> Optional[DocumentModel]:
         """Get document by ID and user ID"""
         try:
-            collection = await get_documents_collection()
-            document_data = await collection.find_one({
-                "document_id": document_id,
-                "user_id": user_id
-            })
+            prisma = await get_prisma_client()
+            document = await prisma.document.find_unique(
+                where={"id": document_id},
+                include={"user": False}  # Only get document data
+            )
             
-            if document_data:
-                return DocumentModel(**document_data)
+            if document and document.userId == user_id:
+                # Convert to our model format 
+                doc_dict = {
+                    "id": document.id,
+                    "userId": document.userId, 
+                    "title": document.title,
+                    "filename": document.filename,
+                    "content": document.content,
+                    "fileType": document.fileType,
+                    "fileSize": document.fileSize,
+                    "uploadPath": document.uploadPath,
+                    "status": document.status,
+                    "createdAt": document.createdAt,
+                    "updatedAt": document.updatedAt
+                }
+                
+                doc_data = DocumentModel.model_validate(doc_dict)
+                return doc_data
             return None
             
         except Exception as e:
@@ -152,26 +167,31 @@ class DocumentProcessor:
     async def list_user_documents(self, user_id: str, skip: int = 0, limit: int = 10) -> List[Dict[str, Any]]:
         """List documents for a user"""
         try:
-            collection = await get_documents_collection()
-            cursor = collection.find({"user_id": user_id})
-            cursor = cursor.skip(skip).limit(limit).sort("created_at", -1)
+            prisma = await get_prisma_client()
+            documents = await prisma.document.find_many(
+                where={"userId": user_id},
+                skip=skip,
+                take=limit,
+                order_by={"createdAt": "desc"}
+            )
             
-            documents = []
-            async for doc in cursor:
-                # Remove content and chunks from list view for performance
+            doc_summaries = []
+            for doc in documents:
+                # Create summary without heavy content
                 doc_summary = {
-                    "document_id": doc["document_id"],
-                    "filename": doc["filename"],
-                    "file_type": doc["file_type"],
-                    "file_size": doc["file_size"],
-                    "processing_status": doc["processing_status"],
-                    "processed_at": doc.get("processed_at"),
-                    "created_at": doc["created_at"],
-                    "chunk_count": len(doc.get("chunks", []))
+                    "document_id": doc.id,
+                    "title": doc.title,
+                    "filename": doc.filename,
+                    "file_type": doc.fileType,
+                    "file_size": doc.fileSize,
+                    "processing_status": doc.status,
+                    "created_at": doc.createdAt,
+                    "updated_at": doc.updatedAt,
+                    "chunk_count": len(self._document_chunks_cache.get(doc.id, []))
                 }
-                documents.append(doc_summary)
+                doc_summaries.append(doc_summary)
             
-            return documents
+            return doc_summaries
             
         except Exception as e:
             logger.error(f"Error listing documents: {e}")
@@ -180,28 +200,30 @@ class DocumentProcessor:
     async def delete_document(self, document_id: str, user_id: str) -> bool:
         """Delete document and associated file"""
         try:
-            collection = await get_documents_collection()
+            prisma = await get_prisma_client()
             
-            # Get document first to get file path
-            document = await collection.find_one({
-                "document_id": document_id,
-                "user_id": user_id
-            })
+            # Get document first to verify ownership and get file path
+            document = await prisma.document.find_unique(
+                where={"id": document_id}
+            )
             
-            if not document:
+            if not document or document.userId != user_id:
                 return False
             
             # Delete file
-            if document.get("upload_path"):
-                await file_handler.delete_file(document["upload_path"])
+            if document.uploadPath:
+                await file_handler.delete_file(document.uploadPath)
             
             # Delete document record
-            result = await collection.delete_one({
-                "document_id": document_id,
-                "user_id": user_id
-            })
+            await prisma.document.delete(
+                where={"id": document_id}
+            )
             
-            return result.deleted_count > 0
+            # Clear from cache
+            if document_id in self._document_chunks_cache:
+                del self._document_chunks_cache[document_id]
+            
+            return True
             
         except Exception as e:
             logger.error(f"Error deleting document: {e}")
@@ -216,16 +238,22 @@ class DocumentProcessor:
     ) -> List[Dict[str, Any]]:
         """Search for relevant chunks in a document"""
         try:
-            # Get document
-            document = await self.get_document(document_id, user_id)
-            if not document or not document.chunks:
+            # Get document chunks from cache
+            if document_id not in self._document_chunks_cache:
+                # Try to get document to verify access
+                document = await self.get_document(document_id, user_id)
+                if not document:
+                    return []
+                # No chunks available
                 return []
+            
+            document_chunks = self._document_chunks_cache[document_id]
             
             # Generate query embedding
             query_embedding = await embedding_service.generate_single_embedding(query)
             
             # Get chunk embeddings
-            chunk_embeddings = [chunk.embedding for chunk in document.chunks]
+            chunk_embeddings = [chunk.embedding for chunk in document_chunks]
             
             # Find similar chunks
             similar_chunks = await embedding_service.find_most_similar(
@@ -236,10 +264,10 @@ class DocumentProcessor:
             results = []
             for result in similar_chunks:
                 chunk_index = result['index']
-                chunk = document.chunks[chunk_index]
+                chunk = document_chunks[chunk_index]
                 results.append({
                     'text': chunk.text,
-                    'chunk_index': chunk.chunk_index,
+                    'chunk_index': chunk.chunkIndex,
                     'similarity': result['similarity']
                 })
             
@@ -252,21 +280,28 @@ class DocumentProcessor:
     async def get_document_stats(self, document_id: str, user_id: str) -> Dict[str, Any]:
         """Get document statistics"""
         try:
-            document = await self.get_document(document_id, user_id)
-            if not document:
+            prisma = await get_prisma_client()
+            document = await prisma.document.find_unique(
+                where={"id": document_id}
+            )
+            
+            if not document or document.userId != user_id:
                 return {}
             
+            chunk_count = len(self._document_chunks_cache.get(document_id, []))
+            
             stats = {
+                "title": document.title,
                 "filename": document.filename,
-                "file_size": document.file_size,
+                "file_size": document.fileSize,
                 "content_length": len(document.content),
-                "chunk_count": len(document.chunks),
+                "chunk_count": chunk_count,
                 "word_count": thai_processor.count_words(document.content),
                 "thai_char_count": thai_processor.count_thai_characters(document.content),
                 "language": thai_processor.detect_language(document.content),
-                "processing_status": document.processing_status,
-                "created_at": document.created_at,
-                "processed_at": document.processed_at
+                "processing_status": document.status,
+                "created_at": document.createdAt,
+                "updated_at": document.updatedAt
             }
             
             # Extract keywords

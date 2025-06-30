@@ -1,56 +1,39 @@
 from pydantic import BaseModel, Field, ConfigDict
 from typing import List, Optional, Any
 from datetime import datetime
-from bson import ObjectId
-
-class PyObjectId(ObjectId):
-    @classmethod
-    def __get_validators__(cls):
-        yield cls.validate
-
-    @classmethod
-    def validate(cls, v, info=None):
-        if not ObjectId.is_valid(v):
-            raise ValueError("Invalid objectid")
-        return ObjectId(v)
-
-    @classmethod
-    def __get_pydantic_json_schema__(cls, field_schema, handler):
-        field_schema.update(type="string")
-        return field_schema
 
 class DocumentChunk(BaseModel):
+    """Document chunk for text processing"""
     text: str
     embedding: List[float]
-    chunk_index: int
-    page_number: Optional[int] = None
+    chunkIndex: int
+    pageNumber: Optional[int] = None
 
 class DocumentModel(BaseModel):
+    """Document model matching Prisma schema"""
     model_config = ConfigDict(
-        populate_by_name=True,
-        arbitrary_types_allowed=True,
-        json_encoders={ObjectId: str}
+        from_attributes=True,
+        populate_by_name=True
     )
     
-    id: Optional[PyObjectId] = Field(default_factory=PyObjectId, alias="_id")
-    document_id: str
-    user_id: str
-    filename: str
-    content: str
-    chunks: List[DocumentChunk] = []
-    processed_at: Optional[datetime] = None
-    file_type: str
-    file_size: int
-    upload_path: str
-    processing_status: str = "pending"  # pending, processing, completed, failed
-    error_message: Optional[str] = None
-    created_at: datetime = Field(default_factory=datetime.utcnow)
-    updated_at: datetime = Field(default_factory=datetime.utcnow)
+    id: str = Field(..., description="Document ID")
+    userId: str = Field(..., description="User ID who owns the document")
+    title: str = Field(..., description="Document title")
+    filename: str = Field(..., description="Original filename")
+    content: str = Field(..., description="Document content")
+    fileType: str = Field(..., description="File type")
+    fileSize: int = Field(..., description="File size in bytes")
+    uploadPath: Optional[str] = Field(None, description="Upload path")
+    status: str = Field(default="processing", description="Processing status")
+    createdAt: datetime = Field(default_factory=datetime.utcnow)
+    updatedAt: datetime = Field(default_factory=datetime.utcnow)
 
 class DocumentUpload(BaseModel):
+    """Document upload request"""
     filename: str
-    file_type: str
-    file_size: int
+    fileType: str
+    fileSize: int
+    title: Optional[str] = None
 
 class DocumentResponse(BaseModel):
     success: bool
@@ -65,5 +48,22 @@ class DocumentListResponse(BaseModel):
     timestamp: str
 
 class DocumentProcessRequest(BaseModel):
-    chunk_size: Optional[int] = 1000
-    chunk_overlap: Optional[int] = 200
+    """Document processing configuration"""
+    chunkSize: Optional[int] = 1000
+    chunkOverlap: Optional[int] = 200
+    
+class DocumentCreate(BaseModel):
+    """Schema for creating a new document"""
+    userId: str
+    title: str
+    filename: str
+    content: str
+    fileType: str
+    fileSize: int
+    uploadPath: Optional[str] = None
+    
+class DocumentUpdate(BaseModel):
+    """Schema for updating a document"""
+    title: Optional[str] = None
+    content: Optional[str] = None
+    status: Optional[str] = None

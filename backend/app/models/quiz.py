@@ -1,95 +1,91 @@
 from pydantic import BaseModel, Field, ConfigDict
 from typing import List, Optional, Dict
 from datetime import datetime
-from bson import ObjectId
-
-class PyObjectId(ObjectId):
-    @classmethod
-    def __get_validators__(cls):
-        yield cls.validate
-
-    @classmethod
-    def validate(cls, v, info=None):
-        if not ObjectId.is_valid(v):
-            raise ValueError("Invalid objectid")
-        return ObjectId(v)
-
-    @classmethod
-    def __get_pydantic_json_schema__(cls, field_schema, handler):
-        field_schema.update(type="string")
-        return field_schema
 
 class QuizQuestion(BaseModel):
-    question_id: str
+    """Quiz question model"""
+    questionId: str
     question: str
     options: List[str]
-    correct_answer: str
+    correctAnswer: str
     explanation: str
-    bloom_level: str  # remember, understand, apply, analyze, evaluate, create
+    bloomLevel: str  # remember, understand, apply, analyze, evaluate, create
     difficulty: str = "medium"  # easy, medium, hard
     points: int = 1
 
 class QuizModel(BaseModel):
+    """Quiz model matching Prisma schema"""
     model_config = ConfigDict(
-        populate_by_name=True,
-        arbitrary_types_allowed=True,
-        json_encoders={ObjectId: str}
+        from_attributes=True,
+        populate_by_name=True
     )
     
-    id: Optional[PyObjectId] = Field(default_factory=PyObjectId, alias="_id")
-    quiz_id: str
-    document_id: str
-    title: str
-    description: Optional[str] = None
-    questions: List[QuizQuestion]
-    total_points: int
-    time_limit: Optional[int] = None  # minutes
-    attempts_allowed: int = 3
-    bloom_distribution: Dict[str, int] = {}  # count per bloom level
-    created_at: datetime = Field(default_factory=datetime.utcnow)
-    updated_at: datetime = Field(default_factory=datetime.utcnow)
+    id: str = Field(..., description="Quiz ID")
+    documentId: str = Field(..., description="Document ID")
+    title: str = Field(..., description="Quiz title")
+    description: Optional[str] = Field(None, description="Quiz description")
+    questions: Dict = Field(..., description="Quiz questions (JSON)")
+    totalPoints: int = Field(..., description="Total points")
+    timeLimit: Optional[int] = Field(None, description="Time limit in minutes")
+    createdAt: datetime = Field(default_factory=datetime.utcnow)
+    updatedAt: datetime = Field(default_factory=datetime.utcnow)
 
 class QuizAttempt(BaseModel):
+    """Quiz attempt model matching Prisma schema"""
     model_config = ConfigDict(
-        populate_by_name=True,
-        arbitrary_types_allowed=True,
-        json_encoders={ObjectId: str}
+        from_attributes=True,
+        populate_by_name=True
     )
     
-    id: Optional[PyObjectId] = Field(default_factory=PyObjectId, alias="_id")
-    attempt_id: str
-    quiz_id: str
-    user_id: str
-    answers: List[str]
-    score: float
-    total_points: int
-    percentage: float
-    time_taken: int  # seconds
-    bloom_scores: Dict[str, float] = {}  # score per bloom level
-    question_results: List[Dict] = []  # detailed results per question
-    completed_at: datetime = Field(default_factory=datetime.utcnow)
+    id: str = Field(..., description="Attempt ID")
+    userId: str = Field(..., description="User ID")
+    quizId: str = Field(..., description="Quiz ID")
+    answers: Dict = Field(..., description="User answers (JSON)")
+    score: float = Field(..., description="Score achieved")
+    totalPoints: int = Field(..., description="Total possible points")
+    percentage: float = Field(..., description="Percentage score")
+    timeTaken: int = Field(..., description="Time taken in seconds")
+    completedAt: datetime = Field(default_factory=datetime.utcnow)
 
 class QuizGenerateRequest(BaseModel):
-    question_count: int = 10
-    bloom_distribution: Optional[Dict[str, int]] = None
+    """Request for generating a quiz"""
+    questionCount: int = 10
+    bloomDistribution: Optional[Dict[str, int]] = None
     difficulty: str = "medium"
-    time_limit: Optional[int] = None
-    include_explanations: bool = True
+    timeLimit: Optional[int] = None
+    includeExplanations: bool = True
 
 class QuizSubmission(BaseModel):
     answers: List[str]
     time_taken: int
 
 class QuizResults(BaseModel):
-    attempt_id: str
-    quiz_id: str
+    """Quiz results summary"""
+    attemptId: str
+    quizId: str
     score: float
     percentage: float
-    total_points: int
-    time_taken: int
-    bloom_scores: Dict[str, float]
-    question_results: List[Dict]
+    totalPoints: int
+    timeTaken: int
+    bloomScores: Dict[str, float]
+    questionResults: List[Dict]
     recommendations: List[str]
+    
+class QuizCreate(BaseModel):
+    """Schema for creating a quiz"""
+    documentId: str
+    title: str
+    description: Optional[str] = None
+    questions: Dict
+    totalPoints: int
+    timeLimit: Optional[int] = None
+    
+class QuizAttemptCreate(BaseModel):
+    """Schema for creating a quiz attempt"""
+    userId: str
+    quizId: str
+    answers: Dict
+    timeTaken: int
 
 class QuizResponse(BaseModel):
     success: bool

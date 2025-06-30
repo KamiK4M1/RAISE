@@ -19,7 +19,7 @@ class Settings(BaseSettings):
     debug: bool = False
     
     # Database Configuration
-    mongodb_uri: str = "mongodb://localhost:27017"
+    mongodb_uri: str = Field(default="mongodb://localhost:27017", env="MONGODB_URI")
     database_name: str = "raise_db"
     
     # AI Model Configuration
@@ -39,7 +39,7 @@ class Settings(BaseSettings):
     # Security
     secret_key: str = "your-secret-key-change-in-production"
     algorithm: str = "HS256"
-    access_token_expire_minutes: int = 30
+    access_token_expire_minutes: int = 1440  # 24 hours
     
     # File Upload Settings
     max_file_size: int = 20 * 1024 * 1024  # 20MB

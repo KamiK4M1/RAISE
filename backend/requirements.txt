@@ -12,9 +12,9 @@ python-dotenv
 aiofiles
 aiohttp
 
-# Database
-motor
-pymongo
+# Database - Prisma ORM
+prisma
+asyncpg  # For async support
 
 # Document Processing
 python-docx
@@ -24,8 +24,12 @@ llama-parse
 # Language Processing
 pythainlp
 
-# Other Utilities
+# Authentication
+python-jose[cryptography]
+passlib[bcrypt]
 python-multipart
+
+# Other Utilities
 requests
 numpy
 
