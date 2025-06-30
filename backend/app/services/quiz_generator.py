@@ -16,9 +16,16 @@ logger = logging.getLogger(__name__)
 
 class QuizGeneratorService:
     def __init__(self):
-        self.quiz_collection = get_collection("quizzes")
-        self.attempt_collection = get_collection("quiz_attempts")
-        self.document_collection = get_collection("documents")
+        self.quiz_collection = None
+        self.attempt_collection = None
+        self.document_collection = None
+    
+    def _ensure_collections(self):
+        """Lazy initialization of collections"""
+        if self.quiz_collection is None:
+            self.quiz_collection = get_collection("quizzes")
+            self.attempt_collection = get_collection("quiz_attempts")
+            self.document_collection = get_collection("documents")
 
     async def generate_quiz(
         self,
@@ -28,6 +35,7 @@ class QuizGeneratorService:
     ) -> QuizModel:
         """Generate a quiz from document content"""
         try:
+            self._ensure_collections()
             # Get document content
             document = await self.document_collection.find_one({"document_id": document_id})
             if not document:
@@ -117,6 +125,7 @@ class QuizGeneratorService:
     async def get_quiz(self, quiz_id: str) -> Optional[QuizModel]:
         """Get quiz by ID"""
         try:
+            self._ensure_collections()
             quiz_data = await self.quiz_collection.find_one({"quiz_id": quiz_id})
             if quiz_data:
                 return QuizModel(**quiz_data)
@@ -133,6 +142,7 @@ class QuizGeneratorService:
     ) -> QuizResults:
         """Submit quiz answers and calculate results"""
         try:
+            self._ensure_collections()
             # Get quiz
             quiz = await self.get_quiz(quiz_id)
             if not quiz:
@@ -277,6 +287,7 @@ class QuizGeneratorService:
     async def get_quiz_history(self, user_id: str, document_id: Optional[str] = None) -> List[Dict]:
         """Get quiz attempt history for user"""
         try:
+            self._ensure_collections()
             query = {"user_id": user_id}
             if document_id:
                 # Get quizzes for specific document
@@ -310,6 +321,7 @@ class QuizGeneratorService:
     async def get_quiz_analytics(self, quiz_id: str) -> Dict[str, Any]:
         """Get analytics for a specific quiz"""
         try:
+            self._ensure_collections()
             # Get all attempts for this quiz
             attempts = []
             async for attempt in self.attempt_collection.find({"quiz_id": quiz_id}):
@@ -350,6 +362,7 @@ class QuizGeneratorService:
     async def delete_quiz(self, quiz_id: str) -> bool:
         """Delete quiz and all associated attempts"""
         try:
+            self._ensure_collections()
             # Delete quiz
             quiz_result = await self.quiz_collection.delete_one({"quiz_id": quiz_id})
             

@@ -14,6 +14,13 @@ db = Database()
 async def get_database():
     return db.database
 
+# ADD THIS NEW FUNCTION that was missing
+def get_collection(collection_name: str):
+    """Get a collection by name"""
+    if db.database is None:
+        raise RuntimeError("Database not initialized. Call connect_to_mongo() first.")
+    return db.database[collection_name]
+
 async def connect_to_mongo():
     try:
         db.client = AsyncIOMotorClient(settings.mongodb_uri)
@@ -65,7 +72,7 @@ async def create_indexes():
     except Exception as e:
         logger.error(f"Error creating indexes: {e}")
 
-# Collection getters
+# Collection getters (keep existing ones)
 async def get_documents_collection():
     return db.database.documents
 

@@ -13,9 +13,27 @@ logger = logging.getLogger(__name__)
 
 class ChatService:
     def __init__(self):
-        self.chat_collection = get_collection("chat_history")
-        self.document_collection = get_collection("documents")
-        self.chunk_collection = get_collection("document_chunks")
+        self._chat_collection = None
+        self._document_collection = None
+        self._chunk_collection = None
+    
+    @property
+    def chat_collection(self):
+        if self._chat_collection is None:
+            self._chat_collection = get_collection("chat_history")
+        return self._chat_collection
+    
+    @property
+    def document_collection(self):
+        if self._document_collection is None:
+            self._document_collection = get_collection("documents")
+        return self._document_collection
+    
+    @property
+    def chunk_collection(self):
+        if self._chunk_collection is None:
+            self._chunk_collection = get_collection("document_chunks")
+        return self._chunk_collection
 
     async def process_document_for_chat(self, document_id: str) -> bool:
         """Process document content for RAG system by creating searchable chunks"""

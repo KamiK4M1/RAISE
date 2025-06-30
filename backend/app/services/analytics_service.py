@@ -11,11 +11,23 @@ logger = logging.getLogger(__name__)
 
 class AnalyticsService:
     def __init__(self):
-        self.flashcard_collection = get_collection("flashcards")
-        self.quiz_collection = get_collection("quiz_attempts")
-        self.chat_collection = get_collection("chat_history")
-        self.session_collection = get_collection("learning_sessions")
-        self.document_collection = get_collection("documents")
+        # Use get_collection function instead of direct access
+        pass
+
+    def get_flashcard_collection(self):
+        return get_collection("flashcards")
+    
+    def get_quiz_collection(self):
+        return get_collection("quiz_attempts")
+    
+    def get_chat_collection(self):
+        return get_collection("chat_history")
+    
+    def get_session_collection(self):
+        return get_collection("learning_sessions")
+    
+    def get_document_collection(self):
+        return get_collection("documents")
 
     async def track_learning_session(
         self,
@@ -35,7 +47,8 @@ class AnalyticsService:
                 details=details
             )
             
-            result = await self.session_collection.insert_one(session.dict(by_alias=True))
+            collection = self.get_session_collection()
+            result = await collection.insert_one(session.dict(by_alias=True))
             return str(result.inserted_id)
             
         except Exception as e:
@@ -142,8 +155,9 @@ class AnalyticsService:
         """Get quiz analytics for user"""
         try:
             # Get quiz attempts in period
+            quiz_collection = self.get_quiz_collection()
             attempts = []
-            async for attempt in self.quiz_collection.find({
+            async for attempt in quiz_collection.find({
                 "user_id": user_id,
                 "completed_at": {"$gte": start_date, "$lte": end_date}
             }):
@@ -155,7 +169,8 @@ class AnalyticsService:
                     "average_score": 0,
                     "improvement_rate": 0,
                     "bloom_strengths": [],
-                    "bloom_weaknesses": []
+                    "bloom_weaknesses": [],
+                    "bloom_averages": {}
                 }
             
             # Calculate metrics
@@ -195,14 +210,15 @@ class AnalyticsService:
             
         except Exception as e:
             logger.error(f"Error getting quiz analytics: {e}")
-            return {"total_attempts": 0, "average_score": 0, "improvement_rate": 0, "bloom_strengths": [], "bloom_weaknesses": []}
+            return {"total_attempts": 0, "average_score": 0, "improvement_rate": 0, "bloom_strengths": [], "bloom_weaknesses": [], "bloom_averages": {}}
 
     async def _get_chat_analytics(self, user_id: str, start_date: datetime, end_date: datetime) -> Dict[str, Any]:
         """Get chat analytics for user"""
         try:
             # Get chat messages in period
+            chat_collection = self.get_chat_collection()
             messages = []
-            async for message in self.chat_collection.find({
+            async for message in chat_collection.find({
                 "user_id": user_id,
                 "created_at": {"$gte": start_date, "$lte": end_date}
             }):
@@ -270,7 +286,8 @@ class AnalyticsService:
                 })
             
             # Quiz attempts
-            async for attempt in self.quiz_collection.find({
+            quiz_collection = self.get_quiz_collection()
+            async for attempt in quiz_collection.find({
                 "user_id": user_id,
                 "completed_at": {"$gte": start_date, "$lte": end_date}
             }):
@@ -281,7 +298,8 @@ class AnalyticsService:
                 })
             
             # Chat sessions
-            async for chat in self.chat_collection.find({
+            chat_collection = self.get_chat_collection()
+            async for chat in chat_collection.find({
                 "user_id": user_id,
                 "created_at": {"$gte": start_date, "$lte": end_date}
             }):
@@ -391,18 +409,22 @@ class AnalyticsService:
             # From flashcards
             flashcard_collection = get_collection("flashcard_reviews")
             async for review in flashcard_collection.find({"user_id": user_id}):
-                flashcard = await self.flashcard_collection.find_one({"card_id": review.get("card_id")})
+                flashcard_col = self.get_flashcard_collection()
+                flashcard = await flashcard_col.find_one({"card_id": review.get("card_id")})
                 if flashcard:
                     studied_docs.add(flashcard.get("document_id"))
             
             # From quizzes
-            async for attempt in self.quiz_collection.find({"user_id": user_id}):
-                quiz = await get_collection("quizzes").find_one({"quiz_id": attempt.get("quiz_id")})
+            quiz_collection = self.get_quiz_collection()
+            async for attempt in quiz_collection.find({"user_id": user_id}):
+                quiz_col = get_collection("quizzes")
+                quiz = await quiz_col.find_one({"quiz_id": attempt.get("quiz_id")})
                 if quiz:
                     studied_docs.add(quiz.get("document_id"))
             
             # From chat
-            async for chat in self.chat_collection.find({"user_id": user_id}):
+            chat_collection = self.get_chat_collection()
+            async for chat in chat_collection.find({"user_id": user_id}):
                 studied_docs.add(chat.get("document_id"))
             
             # Calculate progress metrics
@@ -410,7 +432,7 @@ class AnalyticsService:
             
             # Get recent performance trends
             recent_quiz_scores = []
-            async for attempt in self.quiz_collection.find({
+            async for attempt in quiz_collection.find({
                 "user_id": user_id,
                 "completed_at": {"$gte": start_date, "$lte": end_date}
             }).sort("completed_at", 1):
@@ -463,12 +485,14 @@ class AnalyticsService:
                     activities.append(review["reviewed_at"])
             
             # Get quiz attempts
-            async for attempt in self.quiz_collection.find({"user_id": user_id}):
+            quiz_collection = self.get_quiz_collection()
+            async for attempt in quiz_collection.find({"user_id": user_id}):
                 if attempt.get("completed_at"):
                     activities.append(attempt["completed_at"])
             
             # Get chat activities
-            async for chat in self.chat_collection.find({"user_id": user_id}):
+            chat_collection = self.get_chat_collection()
+            async for chat in chat_collection.find({"user_id": user_id}):
                 if chat.get("created_at"):
                     activities.append(chat["created_at"])
             
@@ -500,8 +524,9 @@ class AnalyticsService:
             recommendations = []
             
             # Analyze recent performance
+            quiz_collection = self.get_quiz_collection()
             recent_quiz_attempts = []
-            async for attempt in self.quiz_collection.find({"user_id": user_id}).sort("completed_at", -1).limit(10):
+            async for attempt in quiz_collection.find({"user_id": user_id}).sort("completed_at", -1).limit(10):
                 recent_quiz_attempts.append(attempt)
             
             # Check for weak Bloom's taxonomy areas
@@ -543,7 +568,8 @@ class AnalyticsService:
                 ))
             
             # Check for unused features
-            chat_count = await self.chat_collection.count_documents({"user_id": user_id})
+            chat_collection = self.get_chat_collection()
+            chat_count = await chat_collection.count_documents({"user_id": user_id})
             if chat_count == 0:
                 recommendations.append(StudyRecommendation(
                     type="feature_usage",
@@ -552,7 +578,8 @@ class AnalyticsService:
                     priority="low"
                 ))
             
-            flashcard_count = await get_collection("flashcard_reviews").count_documents({"user_id": user_id})
+            flashcard_collection = get_collection("flashcard_reviews")
+            flashcard_count = await flashcard_collection.count_documents({"user_id": user_id})
             if flashcard_count == 0:
                 recommendations.append(StudyRecommendation(
                     type="feature_usage",
@@ -571,7 +598,8 @@ class AnalyticsService:
         """Get analytics for a specific document"""
         try:
             # Get document info
-            document = await self.document_collection.find_one({"document_id": document_id})
+            document_collection = self.get_document_collection()
+            document = await document_collection.find_one({"document_id": document_id})
             if not document:
                 return {"error": "Document not found"}
             
@@ -579,34 +607,37 @@ class AnalyticsService:
             unique_users = set()
             
             # From flashcards
+            flashcard_collection = self.get_flashcard_collection()
             flashcards = []
-            async for flashcard in self.flashcard_collection.find({"document_id": document_id}):
+            async for flashcard in flashcard_collection.find({"document_id": document_id}):
                 flashcards.append(flashcard)
             
             flashcard_reviews = 0
             if flashcards:
                 flashcard_ids = [f["card_id"] for f in flashcards]
-                flashcard_collection = get_collection("flashcard_reviews")
-                async for review in flashcard_collection.find({"card_id": {"$in": flashcard_ids}}):
+                flashcard_review_collection = get_collection("flashcard_reviews")
+                async for review in flashcard_review_collection.find({"card_id": {"$in": flashcard_ids}}):
                     unique_users.add(review.get("user_id"))
                     flashcard_reviews += 1
             
             # From quizzes
             quizzes = []
-            quiz_collection = get_collection("quizzes")
-            async for quiz in quiz_collection.find({"document_id": document_id}):
+            quiz_main_collection = get_collection("quizzes")
+            async for quiz in quiz_main_collection.find({"document_id": document_id}):
                 quizzes.append(quiz)
             
             quiz_attempts = 0
             if quizzes:
                 quiz_ids = [q["quiz_id"] for q in quizzes]
-                async for attempt in self.quiz_collection.find({"quiz_id": {"$in": quiz_ids}}):
+                quiz_collection = self.get_quiz_collection()
+                async for attempt in quiz_collection.find({"quiz_id": {"$in": quiz_ids}}):
                     unique_users.add(attempt.get("user_id"))
                     quiz_attempts += 1
             
             # From chat
             chat_questions = 0
-            async for chat in self.chat_collection.find({"document_id": document_id}):
+            chat_collection = self.get_chat_collection()
+            async for chat in chat_collection.find({"document_id": document_id}):
                 unique_users.add(chat.get("user_id"))
                 chat_questions += 1
             
@@ -653,28 +684,31 @@ class AnalyticsService:
                 all_users.add(review.get("user_id"))
             
             # From quiz attempts
-            async for attempt in self.quiz_collection.find():
+            quiz_collection = self.get_quiz_collection()
+            async for attempt in quiz_collection.find():
                 all_users.add(attempt.get("user_id"))
             
             # From chat
-            async for chat in self.chat_collection.find():
+            chat_collection = self.get_chat_collection()
+            async for chat in chat_collection.find():
                 all_users.add(chat.get("user_id"))
             
             total_users = len(all_users)
             
             # Count documents
-            total_documents = await self.document_collection.count_documents({})
+            document_collection = self.get_document_collection()
+            total_documents = await document_collection.count_documents({})
             
             # Count activities
             total_flashcard_reviews = await flashcard_collection.count_documents({})
-            total_quiz_attempts = await self.quiz_collection.count_documents({})
-            total_chat_questions = await self.chat_collection.count_documents({})
+            total_quiz_attempts = await quiz_collection.count_documents({})
+            total_chat_questions = await chat_collection.count_documents({})
             
             # Recent activity (last 7 days)
             week_ago = datetime.utcnow() - timedelta(days=7)
             recent_flashcard_reviews = await flashcard_collection.count_documents({"reviewed_at": {"$gte": week_ago}})
-            recent_quiz_attempts = await self.quiz_collection.count_documents({"completed_at": {"$gte": week_ago}})
-            recent_chat_questions = await self.chat_collection.count_documents({"created_at": {"$gte": week_ago}})
+            recent_quiz_attempts = await quiz_collection.count_documents({"completed_at": {"$gte": week_ago}})
+            recent_chat_questions = await chat_collection.count_documents({"created_at": {"$gte": week_ago}})
             
             return {
                 "total_users": total_users,
