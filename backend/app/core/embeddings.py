@@ -1,7 +1,7 @@
 import asyncio
+import aiohttp
 from typing import List, Dict, Any
 import logging
-from sentence_transformers import SentenceTransformer
 import numpy as np
 from app.config import settings
 from app.core.exceptions import EmbeddingError
@@ -10,37 +10,55 @@ logger = logging.getLogger(__name__)
 
 class EmbeddingService:
     def __init__(self):
-        self.model_name = settings.embedding_model
-        self.model = None
-        self._initialize_model()
-
-    def _initialize_model(self):
-        """Initialize the embedding model"""
-        try:
-            logger.info(f"Loading embedding model: {self.model_name}")
-            self.model = SentenceTransformer(self.model_name)
-            logger.info("Embedding model loaded successfully")
-        except Exception as e:
-            logger.error(f"Failed to load embedding model: {e}")
-            raise EmbeddingError(f"ไม่สามารถโหลดโมเดล embedding ได้: {str(e)}")
+        # Use your Hugging Face endpoint URL
+        self.embedding_endpoint = getattr(settings, 'embedding_endpoint_url', None)
+        if not self.embedding_endpoint:
+            raise EmbeddingError("Embedding endpoint URL not configured")
+        
+        # Optional: Add authentication if your endpoint requires it
+        self.auth_token = getattr(settings, 'hf_auth_token', None)
 
     async def generate_embeddings(self, texts: List[str]) -> List[List[float]]:
-        """Generate embeddings for a list of texts"""
+        """Generate embeddings for a list of texts using Hugging Face endpoint"""
         if not texts:
             return []
         
         try:
-            # Run embedding generation in thread pool to avoid blocking
-            embeddings = await asyncio.to_thread(
-                self.model.encode,
-                texts,
-                normalize_embeddings=True,
-                show_progress_bar=False
-            )
+            headers = {
+                "Content-Type": "application/json"
+            }
             
-            # Convert numpy arrays to lists
-            return [embedding.tolist() for embedding in embeddings]
+            # Add authentication header if token is provided
+            if self.auth_token:
+                headers["Authorization"] = f"Bearer {self.auth_token}"
             
+            payload = {
+                "texts": texts
+            }
+            
+            async with aiohttp.ClientSession() as session:
+                async with session.post(
+                    f"{self.embedding_endpoint}/api/embeddings",
+                    json=payload,
+                    headers=headers,
+                    timeout=aiohttp.ClientTimeout(total=60)  # 60 second timeout
+                ) as response:
+                    if response.status != 200:
+                        error_text = await response.text()
+                        raise EmbeddingError(f"Embedding API error: {response.status} - {error_text}")
+                    
+                    result = await response.json()
+                    
+                    if not result.get("success"):
+                        raise EmbeddingError(f"Embedding API returned error: {result.get('error', 'Unknown error')}")
+                    
+                    embeddings = result.get("embeddings", [])
+                    logger.info(f"Generated embeddings for {len(texts)} texts")
+                    return embeddings
+            
+        except aiohttp.ClientError as e:
+            logger.error(f"HTTP client error: {e}")
+            raise EmbeddingError(f"Failed to connect to embedding service: {str(e)}")
         except Exception as e:
             logger.error(f"Embedding generation error: {e}")
             raise EmbeddingError(f"เกิดข้อผิดพลาดในการสร้าง embedding: {str(e)}")
@@ -65,6 +83,54 @@ class EmbeddingService:
         except Exception as e:
             logger.error(f"Similarity computation error: {e}")
             return 0.0
+
+    async def compute_similarity_texts(self, text1: str, text2: str) -> float:
+        """Compute similarity between two texts using the endpoint"""
+        try:
+            headers = {
+                "Content-Type": "application/json"
+            }
+            
+            if self.auth_token:
+                headers["Authorization"] = f"Bearer {self.auth_token}"
+            
+            payload = {
+                "text1": text1,
+                "text2": text2
+            }
+            
+            async with aiohttp.ClientSession() as session:
+                async with session.post(
+                    f"{self.embedding_endpoint}/api/similarity",
+                    json=payload,
+                    headers=headers,
+                    timeout=aiohttp.ClientTimeout(total=30)
+                ) as response:
+                    if response.status != 200:
+                        # Fallback to local computation if endpoint doesn't support similarity
+                        emb1 = await self.generate_single_embedding(text1)
+                        emb2 = await self.generate_single_embedding(text2)
+                        return await self.compute_similarity(emb1, emb2)
+                    
+                    result = await response.json()
+                    
+                    if result.get("success"):
+                        return result.get("similarity", 0.0)
+                    else:
+                        # Fallback to local computation
+                        emb1 = await self.generate_single_embedding(text1)
+                        emb2 = await self.generate_single_embedding(text2)
+                        return await self.compute_similarity(emb1, emb2)
+                        
+        except Exception as e:
+            logger.error(f"Similarity computation error: {e}")
+            # Fallback to local computation
+            try:
+                emb1 = await self.generate_single_embedding(text1)
+                emb2 = await self.generate_single_embedding(text2)
+                return await self.compute_similarity(emb1, emb2)
+            except:
+                return 0.0
 
     async def find_most_similar(
         self, 
@@ -98,9 +164,8 @@ class EmbeddingService:
 
     def get_embedding_dimension(self) -> int:
         """Get the dimension of embeddings produced by the model"""
-        if self.model:
-            return self.model.get_sentence_embedding_dimension()
-        return 0
+        # BGE-M3 produces 1024-dimensional embeddings
+        return 1024
 
 # Global instance
 embedding_service = EmbeddingService()

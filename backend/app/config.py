@@ -23,12 +23,16 @@ class Settings(BaseSettings):
     database_name: str = "raise_db"
     
     # AI Model Configuration
-    together_ai_api_key: str = ""
+    together_ai_api_key: str =""
     llamaparse_api_key: str = ""
+    
+    # Embedding Service Configuration
+    embedding_endpoint_url: str = ""  # Your Hugging Face endpoint URL
+    hf_auth_token: Optional[str] = None  # Optional: For private endpoints
     
     # Model Settings
     llm_model: str = "meta-llama/Meta-Llama-3.3-70B-Instruct-Turbo"
-    embedding_model: str = "BAAI/bge-m3"
+    embedding_model: str = "BAAI/bge-m3"  # Keep for reference
     max_tokens: int = 2048
     temperature: float = 0.7
     

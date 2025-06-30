@@ -8,12 +8,9 @@ pydantic
 pydantic-settings
 python-dotenv
 
-# Asynchronous File Operations
+# Asynchronous File Operations and HTTP Requests
 aiofiles
-
-# Hugging Face for Embeddings
-sentence-transformers
-huggingface-hub
+aiohttp
 
 # Database
 motor
@@ -31,3 +28,6 @@ pythainlp
 python-multipart
 requests
 numpy
+
+# Together AI
+together
