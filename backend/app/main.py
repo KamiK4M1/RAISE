@@ -5,7 +5,9 @@ from contextlib import asynccontextmanager
 import uvicorn
 
 from app.config import settings
-from app.core.database import connect_database, disconnect_database
+from app.database.mongodb import connect_to_mongo, close_mongo_connection
+from app.core.vector_search import initialize_vector_search
+from app.core.database import database_health_check
 from app.routers import documents, flashcards, quiz, chat, analytics, auth
 from app.core.exceptions import setup_exception_handlers
 
@@ -13,10 +15,22 @@ from app.core.exceptions import setup_exception_handlers
 @asynccontextmanager
 async def lifespan(app: FastAPI):
     # Startup
-    await connect_database()
+    try:
+        await connect_to_mongo()
+        await initialize_vector_search()
+        print("✅ MongoDB and vector search initialized successfully")
+    except Exception as e:
+        print(f"❌ Failed to initialize database: {e}")
+        raise
+    
     yield
+    
     # Shutdown
-    await disconnect_database()
+    try:
+        await close_mongo_connection()
+        print("✅ Database connection closed successfully")
+    except Exception as e:
+        print(f"❌ Error closing database connection: {e}")
 
 
 app = FastAPI(
@@ -64,9 +78,13 @@ async def root():
 
 @app.get("/health")
 async def health_check():
+    """Enhanced health check with database status"""
+    db_healthy = await database_health_check()
+    
     return {
         "success": True,
-        "status": "healthy",
+        "status": "healthy" if db_healthy else "degraded",
+        "database": "connected" if db_healthy else "disconnected",
         "timestamp": "2024-01-15T10:30:00Z"
     }
 

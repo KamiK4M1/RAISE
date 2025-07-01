@@ -84,6 +84,21 @@ class RAGError(RAISEException):
     def __init__(self, message: str = "เกิดข้อผิดพลาดในระบบ RAG"):
         super().__init__(message, "RAG_ERROR")
 
+class DocumentNotFoundError(RAISEException):
+    """Exception raised when document is not found"""
+    def __init__(self, message: str = "ไม่พบเอกสาร"):
+        super().__init__(message, "DOCUMENT_NOT_FOUND")
+
+class FlashcardNotFoundError(RAISEException):
+    """Exception raised when flashcard is not found"""
+    def __init__(self, message: str = "ไม่พบการ์ดคำศัพท์"):
+        super().__init__(message, "FLASHCARD_NOT_FOUND")
+
+class QuizNotFoundError(RAISEException):
+    """Exception raised when quiz is not found"""
+    def __init__(self, message: str = "ไม่พบแบบทดสอบ"):
+        super().__init__(message, "QUIZ_NOT_FOUND")
+
 def create_error_response(code: str, message: str, details: str = None):
     """Create standardized error response"""
     return {

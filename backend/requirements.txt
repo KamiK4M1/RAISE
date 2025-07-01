@@ -12,9 +12,12 @@ python-dotenv
 aiofiles
 aiohttp
 
-# Database - Prisma ORM
-prisma
-asyncpg  # For async support
+# Database - MongoDB with Motor
+motor>=3.3.0
+pymongo>=4.5.0
+
+# Vector Search (optional)
+faiss-cpu>=1.7.4  # For local vector search fallback
 
 # Document Processing
 python-docx

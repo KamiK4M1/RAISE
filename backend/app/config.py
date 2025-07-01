@@ -20,7 +20,13 @@ class Settings(BaseSettings):
     
     # Database Configuration
     mongodb_uri: str = Field(default="mongodb://localhost:27017", env="MONGODB_URI")
-    database_name: str = "raise_db"
+    database_name: str = Field(default="raise_db", env="MONGODB_DB_NAME")
+    mongodb_max_connections: int = Field(default=50, env="MONGODB_MAX_CONNECTIONS")
+    mongodb_min_connections: int = Field(default=5, env="MONGODB_MIN_CONNECTIONS")
+    
+    # Vector Search Configuration
+    mongodb_vector_search_index: Optional[str] = Field(default=None, env="MONGODB_VECTOR_SEARCH_INDEX")
+    use_faiss_vector_search: bool = Field(default=False, env="USE_FAISS_VECTOR_SEARCH")
     
     # AI Model Configuration
     together_ai_api_key: str =""

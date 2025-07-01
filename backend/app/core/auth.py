@@ -1,5 +1,5 @@
 """
-JWT Authentication and security utilities using Prisma
+JWT Authentication and security utilities using MongoDB
 """
 import logging
 from datetime import datetime, timedelta
@@ -8,8 +8,9 @@ from jose import JWTError, jwt
 from fastapi import HTTPException, status, Depends
 from fastapi.security import HTTPBearer, HTTPAuthorizationCredentials
 from passlib.context import CryptContext
+from bson import ObjectId
 from app.config import settings
-from app.core.database import get_prisma_client
+from app.database.mongodb import mongodb_manager
 
 logger = logging.getLogger(__name__)
 
@@ -79,18 +80,22 @@ async def get_current_user(credentials: HTTPAuthorizationCredentials = Depends(s
         raise credentials_exception
     
     # Get user from database
-    prisma = await get_prisma_client()
-    user = await prisma.user.find_unique(where={"id": user_id})
+    users_collection = mongodb_manager.get_users_collection()
+    user = await users_collection.find_one({"_id": ObjectId(user_id)})
     
     if user is None:
         raise credentials_exception
-        
+    
+    # Convert ObjectId to string for compatibility
+    user["id"] = str(user["_id"])
+    del user["_id"]
+    
     return user
 
 async def get_current_user_id(credentials: HTTPAuthorizationCredentials = Depends(security)) -> str:
     """Dependency to get current user ID only"""
     user = await get_current_user(credentials)
-    return user.id
+    return user["id"]
 
 # Optional authentication (for endpoints that work with or without auth)
 async def get_current_user_optional(credentials: HTTPAuthorizationCredentials = Depends(security)) -> Optional[dict]:
@@ -102,13 +107,13 @@ async def get_current_user_optional(credentials: HTTPAuthorizationCredentials = 
 
 async def authenticate_user(email: str, password: str):
     """Authenticate user with email and password"""
-    prisma = await get_prisma_client()
-    user = await prisma.user.find_unique(where={"email": email})
+    users_collection = mongodb_manager.get_users_collection()
+    user = await users_collection.find_one({"email": email})
     
     if not user:
         return False
-    if not user.password:
+    if not user.get("password"):
         return False
-    if not verify_password(password, user.password):
+    if not verify_password(password, user["password"]):
         return False
     return user
