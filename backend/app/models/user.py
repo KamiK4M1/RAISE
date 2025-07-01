@@ -3,7 +3,7 @@ from typing import Optional, Dict, List
 from datetime import datetime
 
 class User(BaseModel):
-    """User model matching Prisma schema"""
+    """User model for MongoDB"""
     model_config = ConfigDict(
         from_attributes=True,
         populate_by_name=True

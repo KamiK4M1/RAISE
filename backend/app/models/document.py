@@ -21,8 +21,8 @@ class DocumentChunkCreate(BaseModel):
     start_pos: Optional[int] = None
     end_pos: Optional[int] = None
 
-class Document(BaseModel):
-    """Document model for MongoDB"""
+class DocumentModel(BaseModel):
+    """Alias for Document model (deprecated, use Document)"""
     model_config = ConfigDict(
         from_attributes=True,
         populate_by_name=True

@@ -3,10 +3,10 @@ from datetime import datetime, timedelta
 from typing import List, Dict, Any, Optional
 import logging
 
-from app.database.mongodb import get_flashcards_collection
-from app.models.flashcard import FlashcardModel, FlashcardSession, FlashcardStats
+from app.database.mongodb import mongodb_manager
+from app.models.flashcard import Flashcard, ReviewSession, FlashcardStats
 from app.services.document_processor import document_processor
-from app.services.spaced_repetition import spaced_repetition
+from app.services.spaced_repetition import get_spaced_repetition_service
 from app.core.ai_models import together_ai
 from app.core.exceptions import ModelError, DatabaseError
 
@@ -23,9 +23,10 @@ class FlashcardGenerator:
         count: int = 10,
         difficulty: str = "medium",
         topics: Optional[List[str]] = None
-    ) -> List[FlashcardModel]:
+    ) -> List[Flashcard]:
         """Generate flashcards from document content"""
         try:
+            spaced_repetition = await get_spaced_repetition_service()
             # Get document
             document = await document_processor.get_document(document_id, user_id)
             if not document:
@@ -54,12 +55,12 @@ class FlashcardGenerator:
             
             # Create flashcard models
             flashcards = []
-            collection = await get_flashcards_collection()
+            collection = await mongodb_manager()
             
             for i, card_data in enumerate(flashcard_data):
                 card_id = str(uuid.uuid4())
                 
-                flashcard = FlashcardModel(
+                flashcard = Flashcard(
                     card_id=card_id,
                     document_id=document_id,
                     question=card_data.get("question", ""),
@@ -88,10 +89,10 @@ class FlashcardGenerator:
         document_id: str,
         user_id: str,
         session_size: int = 10
-    ) -> FlashcardSession:
+    ) -> ReviewSession:
         """Get flashcards for review session"""
         try:
-            collection = await get_flashcards_collection()
+            collection = await mongodb_manager()
             
             # Get cards due for review
             now = datetime.utcnow()
@@ -102,7 +103,7 @@ class FlashcardGenerator:
             
             cards = []
             async for card_data in cursor:
-                card = FlashcardModel(**card_data)
+                card = Flashcard(**card_data)
                 cards.append(card)
             
             # If not enough due cards, get some upcoming ones
@@ -114,11 +115,11 @@ class FlashcardGenerator:
                 }).sort("next_review", 1).limit(remaining)
                 
                 async for card_data in cursor:
-                    card = FlashcardModel(**card_data)
+                    card = Flashcard(**card_data)
                     cards.append(card)
             
             session_id = str(uuid.uuid4())
-            session = FlashcardSession(
+            session = ReviewSession(
                 session_id=session_id,
                 document_id=document_id,
                 cards=cards,

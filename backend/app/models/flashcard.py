@@ -37,6 +37,13 @@ class FlashcardCreate(BaseModel):
     answer: str
     difficulty: str = "medium"
     
+class FlashcardAnswer(BaseModel):
+    """Answer submission model"""
+    card_id: str
+    user_answer: Optional[str] = None
+    quality: Optional[int] = None
+    time_taken: Optional[int] = None
+
 class FlashcardUpdate(BaseModel):
     """Schema for updating a flashcard"""
     question: Optional[str] = None

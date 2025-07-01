@@ -99,6 +99,11 @@ class QuizNotFoundError(RAISEException):
     def __init__(self, message: str = "ไม่พบแบบทดสอบ"):
         super().__init__(message, "QUIZ_NOT_FOUND")
 
+class VectorStoreError(RAISEException):
+    """Exception raised for vector store operations"""
+    def __init__(self, message: str = "เกิดข้อผิดพลาดในระบบจัดเก็บเวกเตอร์"):
+        super().__init__(message, "VECTOR_STORE_ERROR")
+
 def create_error_response(code: str, message: str, details: str = None):
     """Create standardized error response"""
     return {

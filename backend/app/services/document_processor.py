@@ -8,7 +8,7 @@ from datetime import datetime
 from typing import List, Optional, Dict, Any
 import asyncio
 
-from app.database.mongodb import get_collection
+from app.database.mongodb import mongodb_manager
 from app.utils.file_handler import file_handler
 from app.core.embeddings import embedding_service
 from app.core.exceptions import DocumentProcessingError
@@ -35,7 +35,7 @@ class DocumentProcessorService:
             content = await file_handler.extract_text(file_path, file_type)
 
             # Create document in MongoDB
-            documents_collection = get_collection("documents")
+            documents_collection = mongodb_manager("documents")
             document_data = {
                 "userId": user_id,
                 "title": title,
@@ -90,12 +90,12 @@ class DocumentProcessorService:
 
             # Store chunks in cache and database
             self._document_chunks_cache[doc_id] = document_chunks
-            chunks_collection = get_collection("chunks")
+            chunks_collection = mongodb_manager("chunks")
             await chunks_collection.insert_many([c.dict() for c in document_chunks])
 
 
             # Update document with chunks and status
-            documents_collection = get_collection("documents")
+            documents_collection = mongodb_manager("documents")
             await documents_collection.update_one(
                 {"_id": doc_id},
                 {
@@ -112,7 +112,7 @@ class DocumentProcessorService:
 
     async def get_document(self, doc_id: str, user_id: str) -> Optional[DocumentModel]:
         """Get a document by its ID."""
-        documents_collection = get_collection("documents")
+        documents_collection = mongodb_manager("documents")
         doc_data = await documents_collection.find_one({"_id": doc_id, "userId": user_id})
         if doc_data:
             return DocumentModel(**doc_data)
@@ -120,17 +120,17 @@ class DocumentProcessorService:
 
     async def list_user_documents(self, user_id: str, skip: int, limit: int) -> List[Dict[str, Any]]:
         """List documents for a specific user."""
-        documents_collection = get_collection("documents")
+        documents_collection = mongodb_manager("documents")
         cursor = documents_collection.find({"userId": user_id}).skip(skip).limit(limit)
         return [doc async for doc in cursor]
 
     async def delete_document(self, doc_id: str, user_id: str) -> bool:
         """Delete a document and its associated chunks."""
-        documents_collection = get_collection("documents")
+        documents_collection = mongodb_manager("documents")
         result = await documents_collection.delete_one({"_id": doc_id, "userId": user_id})
 
         if result.deleted_count > 0:
-            chunks_collection = get_collection("chunks")
+            chunks_collection = mongodb_manager("chunks")
             await chunks_collection.delete_many({"document_id": doc_id})
             if doc_id in self._document_chunks_cache:
                 del self._document_chunks_cache[doc_id]
@@ -139,7 +139,7 @@ class DocumentProcessorService:
 
     async def update_document_status(self, doc_id: str, status: str, error_message: Optional[str] = None):
         """Update the processing status of a document."""
-        documents_collection = get_collection("documents")
+        documents_collection = mongodb_manager("documents")
         update_data = {"status": status, "updatedAt": datetime.utcnow()}
         if error_message:
             update_data["error_message"] = error_message

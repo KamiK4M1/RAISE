@@ -21,7 +21,8 @@ class VectorSearchManager:
     """Manages vector search operations"""
     
     def __init__(self):
-        self.chunks_collection = mongodb_manager.get_document_chunks_collection()
+        # Initialize attributes to None. They will be populated after the DB connection is up.
+        self.chunks_collection = None
         self.use_atlas_search = hasattr(settings, 'mongodb_vector_search_index')
         self.vector_index_name = getattr(settings, 'mongodb_vector_search_index', 'vector_index')
         
@@ -31,7 +32,10 @@ class VectorSearchManager:
         self._use_faiss = getattr(settings, 'use_faiss_vector_search', False)
     
     async def initialize_vector_search(self):
-        """Initialize vector search system"""
+        """Initialize vector search system after the database connection is established."""
+        # Now it's safe to get the collection, as this is called from the lifespan startup.
+        self.chunks_collection = mongodb_manager.get_document_chunks_collection()
+        
         try:
             if self.use_atlas_search:
                 await self._initialize_atlas_search()
