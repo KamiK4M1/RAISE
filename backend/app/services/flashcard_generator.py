@@ -6,11 +6,15 @@ import logging
 from app.database.mongodb import mongodb_manager
 from app.models.flashcard import Flashcard, ReviewSession, FlashcardStats
 from app.services.document_processor import document_processor
-from app.services.spaced_repetition import get_spaced_repetition_service
+from app.services.spaced_repetition import get_spaced_repetition_service # Corrected import
 from app.core.ai_models import together_ai
 from app.core.exceptions import ModelError, DatabaseError
 
 logger = logging.getLogger(__name__)
+
+# Helper function to get the flashcards collection
+async def get_flashcards_collection():
+    return mongodb_manager.get_collection("flashcards")
 
 class FlashcardGenerator:
     def __init__(self):
@@ -27,7 +31,6 @@ class FlashcardGenerator:
         """Generate flashcards from document content"""
         try:
             spaced_repetition = await get_spaced_repetition_service()
-            # Get document
             document = await document_processor.get_document(document_id, user_id)
             if not document:
                 raise ModelError("ไม่พบเอกสารที่ร้องขอ")
@@ -35,10 +38,8 @@ class FlashcardGenerator:
             if document.processing_status != "completed":
                 raise ModelError("เอกสารยังไม่ได้ประมวลผลเสร็จสิ้น")
             
-            # Prepare content for AI model
             content = document.content
             if topics:
-                # Filter content by topics if specified
                 topic_content = []
                 for chunk in document.chunks:
                     for topic in topics:
@@ -47,15 +48,14 @@ class FlashcardGenerator:
                             break
                 
                 if topic_content:
-                    content = "\n".join(topic_content[:10])  # Limit to 10 chunks
+                    content = "\n".join(topic_content[:10])
             
-            # Generate flashcards using AI
             logger.info(f"Generating {count} flashcards for document {document_id}")
             flashcard_data = await together_ai.generate_flashcards(content, count)
             
-            # Create flashcard models
             flashcards = []
-            collection = await mongodb_manager()
+            # FIX: Call the helper function to get the collection
+            collection = await get_flashcards_collection()
             
             for i, card_data in enumerate(flashcard_data):
                 card_id = str(uuid.uuid4())
@@ -73,7 +73,6 @@ class FlashcardGenerator:
                     updated_at=datetime.utcnow()
                 )
                 
-                # Save to database
                 await collection.insert_one(flashcard.dict(by_alias=True, exclude={"id"}))
                 flashcards.append(flashcard)
             
@@ -92,9 +91,9 @@ class FlashcardGenerator:
     ) -> ReviewSession:
         """Get flashcards for review session"""
         try:
-            collection = await mongodb_manager()
+            # FIX: Call the helper function to get the collection
+            collection = await get_flashcards_collection()
             
-            # Get cards due for review
             now = datetime.utcnow()
             cursor = collection.find({
                 "document_id": document_id,
@@ -103,10 +102,10 @@ class FlashcardGenerator:
             
             cards = []
             async for card_data in cursor:
+                # FIX: Use the correct Flashcard model
                 card = Flashcard(**card_data)
                 cards.append(card)
             
-            # If not enough due cards, get some upcoming ones
             if len(cards) < session_size:
                 remaining = session_size - len(cards)
                 cursor = collection.find({
@@ -115,6 +114,7 @@ class FlashcardGenerator:
                 }).sort("next_review", 1).limit(remaining)
                 
                 async for card_data in cursor:
+                    # FIX: Use the correct Flashcard model
                     card = Flashcard(**card_data)
                     cards.append(card)
             
@@ -143,14 +143,15 @@ class FlashcardGenerator:
         try:
             collection = await get_flashcards_collection()
             
-            # Get current card
             card_data = await collection.find_one({"card_id": card_id})
             if not card_data:
                 raise DatabaseError("ไม่พบบัตรคำศัพท์ที่ร้องขอ")
             
-            card = FlashcardModel(**card_data)
+            # FIX: Use the correct Flashcard model
+            card = Flashcard(**card_data)
             
-            # Calculate new review parameters
+            # FIX: Get the spaced_repetition service
+            spaced_repetition = await get_spaced_repetition_service()
             new_ease_factor, new_interval, next_review = spaced_repetition.calculate_next_review(
                 card.ease_factor,
                 card.interval,
@@ -158,12 +159,10 @@ class FlashcardGenerator:
                 card.review_count
             )
             
-            # Update counters
             new_review_count = card.review_count + 1
             new_correct_count = card.correct_count + (1 if quality >= 3 else 0)
             new_incorrect_count = card.incorrect_count + (1 if quality < 3 else 0)
             
-            # Update card in database
             update_data = {
                 "ease_factor": new_ease_factor,
                 "interval": new_interval,
@@ -179,10 +178,8 @@ class FlashcardGenerator:
                 {"$set": update_data}
             )
             
-            # Determine new difficulty level
             new_difficulty = spaced_repetition.get_difficulty_level(new_ease_factor, new_interval)
             
-            # Return response
             is_correct = quality >= 3
             return {
                 "card_id": card_id,
@@ -209,7 +206,6 @@ class FlashcardGenerator:
         try:
             collection = await get_flashcards_collection()
             
-            # Get cards for the next N days
             start_date = datetime.utcnow().replace(hour=0, minute=0, second=0, microsecond=0)
             end_date = start_date + timedelta(days=days_ahead)
             
@@ -221,10 +217,11 @@ class FlashcardGenerator:
                 }
             }).sort("next_review", 1)
             
-            # Group by date
             schedule = {}
+            spaced_repetition = await get_spaced_repetition_service()
             async for card_data in cursor:
-                card = FlashcardModel(**card_data)
+                # FIX: Use the correct Flashcard model
+                card = Flashcard(**card_data)
                 review_date = card.next_review.date().isoformat()
                 
                 if review_date not in schedule:
@@ -254,28 +251,26 @@ class FlashcardGenerator:
         try:
             collection = await get_flashcards_collection()
             
-            # Get all cards for document
             cursor = collection.find({"document_id": document_id})
             
             total_cards = 0
             due_today = 0
-            learning = 0  # Cards with interval < 7
-            reviewing = 0  # Cards with interval >= 7
-            mastered = 0  # Cards with ease_factor > 2.5 and interval > 30
+            learning = 0
+            reviewing = 0
+            mastered = 0
             ease_factors = []
             
             today = datetime.utcnow().date()
             
             async for card_data in cursor:
-                card = FlashcardModel(**card_data)
+                # FIX: Use the correct Flashcard model
+                card = Flashcard(**card_data)
                 total_cards += 1
                 ease_factors.append(card.ease_factor)
                 
-                # Check if due today
                 if card.next_review.date() <= today:
                     due_today += 1
                 
-                # Categorize by learning stage
                 if card.interval < 7:
                     learning += 1
                 elif card.ease_factor > 2.5 and card.interval > 30:
@@ -309,6 +304,9 @@ class FlashcardGenerator:
         """Reset a flashcard's progress"""
         try:
             collection = await get_flashcards_collection()
+            
+            # FIX: Get the spaced_repetition service to access its properties
+            spaced_repetition = await get_spaced_repetition_service()
             
             result = await collection.update_one(
                 {"card_id": card_id},

@@ -1931,8 +1931,3 @@ def get_analytics_service() -> AnalyticsService:
     Dependency injector for the AnalyticsService.
     """
     return AnalyticsService()
-
-
-class AnalyticsService(AdvancedAnalyticsService):
-    """Backward compatible analytics service"""
-    pass

@@ -9,7 +9,8 @@ from app.models.flashcard import (
     FlashcardResponse
 )
 from app.services.flashcard_generator import flashcard_generator
-from app.services.spaced_repetition import SpacedRepetitionService
+# FIX 1: Import the getter function instead of the class
+from app.services.spaced_repetition import get_spaced_repetition_service
 from app.core.auth import get_current_user_id, get_current_user
 
 logger = logging.getLogger(__name__)
@@ -69,6 +70,9 @@ async def get_review_session(
             session_size=session_size
         )
         
+        # FIX 2: Get an instance of the spaced repetition service
+        spaced_repetition = await get_spaced_repetition_service()
+        
         return FlashcardResponse(
             success=True,
             data={
@@ -85,6 +89,7 @@ async def get_review_session(
                         "difficulty": card.difficulty,
                         "review_count": card.review_count,
                         "next_review": card.next_review,
+                        # This call will now work correctly
                         "urgency": spaced_repetition.get_review_urgency(card.next_review)
                     }
                     for card in session.cards

@@ -7,8 +7,9 @@ from app.models.quiz import (
     QuizGenerateRequest, QuizSubmission, QuizResponse, 
     QuizResults, QuizModel
 )
-from app.services.quiz_generator import get_quiz_generator_service, QuizGeneratorService
-from app.core.auth import get_current_user_id, get_current_user
+# Correctly importing the factory function
+from app.services.quiz_generator import get_quiz_generator_service
+from app.core.auth import get_current_user_id
 
 logger = logging.getLogger(__name__)
 
@@ -22,6 +23,8 @@ async def generate_quiz(
 ):
     """Generate a quiz from document using Bloom's Taxonomy"""
     try:
+        # FIX: Get an instance of the quiz generator service
+        quiz_generator = await get_quiz_generator_service()
         quiz = await quiz_generator.generate_quiz(
             document_id=doc_id,
             user_id=user_id,
@@ -67,6 +70,8 @@ async def get_quiz(
 ):
     """Get quiz by ID"""
     try:
+        # FIX: Get an instance of the quiz generator service
+        quiz_generator = await get_quiz_generator_service()
         quiz = await quiz_generator.get_quiz(quiz_id)
         
         if not quiz:
@@ -114,6 +119,8 @@ async def submit_quiz(
 ):
     """Submit quiz answers and get results"""
     try:
+        # FIX: Get an instance of the quiz generator service
+        quiz_generator = await get_quiz_generator_service()
         results = await quiz_generator.submit_quiz(
             quiz_id=quiz_id,
             user_id=user_id,
@@ -149,31 +156,16 @@ async def get_quiz_results(
 ):
     """Get specific quiz attempt results"""
     try:
-        from app.database.mongodb import get_collection
-        attempt_collection = get_collection("quiz_attempts")
-        
-        attempt = await attempt_collection.find_one({
-            "attempt_id": attempt_id,
-            "quiz_id": quiz_id,
-            "user_id": user_id
-        })
+        # FIX: Get an instance of the quiz generator service
+        quiz_generator = await get_quiz_generator_service()
+        attempt = await quiz_generator.get_quiz_results(attempt_id, user_id)
         
         if not attempt:
             raise HTTPException(status_code=404, detail="ไม่พบผลการทำแบบทดสอบที่ร้องขอ")
         
         return QuizResponse(
             success=True,
-            data={
-                "attempt_id": attempt["attempt_id"],
-                "quiz_id": attempt["quiz_id"],
-                "score": attempt["score"],
-                "total_points": attempt["total_points"],
-                "percentage": attempt["percentage"],
-                "time_taken": attempt["time_taken"],
-                "bloom_scores": attempt["bloom_scores"],
-                "question_results": attempt["question_results"],
-                "completed_at": attempt["completed_at"]
-            },
+            data=attempt.dict(), # Directly return the model dict
             message="ดึงผลการทำแบบทดสอบสำเร็จ",
             timestamp=datetime.utcnow().isoformat() + "Z"
         )
@@ -191,6 +183,8 @@ async def get_quiz_history(
 ):
     """Get quiz history for a document"""
     try:
+        # FIX: Get an instance of the quiz generator service
+        quiz_generator = await get_quiz_generator_service()
         history = await quiz_generator.get_quiz_history(
             user_id=user_id,
             document_id=doc_id
@@ -217,6 +211,8 @@ async def get_user_quiz_history(
 ):
     """Get all quiz history for user"""
     try:
+        # FIX: Get an instance of the quiz generator service
+        quiz_generator = await get_quiz_generator_service()
         history = await quiz_generator.get_quiz_history(user_id=user_id)
         
         return QuizResponse(
@@ -241,6 +237,8 @@ async def get_quiz_analytics(
 ):
     """Get analytics for a specific quiz"""
     try:
+        # FIX: Get an instance of the quiz generator service
+        quiz_generator = await get_quiz_generator_service()
         analytics = await quiz_generator.get_quiz_analytics(quiz_id)
         
         return QuizResponse(
@@ -264,6 +262,8 @@ async def delete_quiz(
 ):
     """Delete a quiz and all associated attempts"""
     try:
+        # FIX: Get an instance of the quiz generator service
+        quiz_generator = await get_quiz_generator_service()
         success = await quiz_generator.delete_quiz(quiz_id)
         
         if not success:
@@ -282,7 +282,7 @@ async def delete_quiz(
         logger.error(f"Error deleting quiz: {e}")
         raise HTTPException(status_code=500, detail="เกิดข้อผิดพลาดในการลบแบบทดสอบ")
 
-@router.get("/{quiz_id}/difficulty/{level}", response_model=QuizResponse)  
+@router.get("/{quiz_id}/difficulty/{level}", response_model=QuizResponse) 
 async def get_questions_by_difficulty(
     quiz_id: str,
     level: str,
@@ -290,6 +290,8 @@ async def get_questions_by_difficulty(
 ):
     """Get questions filtered by difficulty level"""
     try:
+        # FIX: Get an instance of the quiz generator service
+        quiz_generator = await get_quiz_generator_service()
         quiz = await quiz_generator.get_quiz(quiz_id)
         
         if not quiz:
@@ -333,6 +335,8 @@ async def get_questions_by_bloom_level(
 ):
     """Get questions filtered by Bloom's taxonomy level"""
     try:
+        # FIX: Get an instance of the quiz generator service
+        quiz_generator = await get_quiz_generator_service()
         quiz = await quiz_generator.get_quiz(quiz_id)
         
         if not quiz:
