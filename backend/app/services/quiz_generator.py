@@ -966,4 +966,10 @@ class QuizGeneratorService:
         await self.attempt_collection.delete_many({"quiz_id": quiz_id})
         return quiz_result.deleted_count > 0
 
-quiz_generator = QuizGeneratorService()
+# quiz_generator = QuizGeneratorService()
+
+def get_quiz_generator_service() -> QuizGeneratorService:
+    """
+    Dependency injector for the QuizGeneratorService.
+    """
+    return QuizGeneratorService()

@@ -1,5 +1,5 @@
 from pydantic import BaseModel, Field, ConfigDict
-from typing import List, Dict, Optional
+from typing import List, Dict, Any, Optional
 from datetime import datetime
 from bson import ObjectId
 
@@ -129,17 +129,17 @@ class LearningSession(BaseModel):
     activity_type: str
     document_id: str
     duration: int
-    details: Dict[str, any] = {}
+    details: Dict[str, Any] = {}
     created_at: datetime = Field(default_factory=datetime.utcnow)
 
 class UserAnalyticsUpdated(BaseModel):
     user_id: str
     period_days: int
-    flashcard_stats: Dict[str, any] = {}
-    quiz_stats: Dict[str, any] = {}
-    chat_stats: Dict[str, any] = {}
-    study_patterns: Dict[str, any] = {}
-    learning_progress: Dict[str, any] = {}
+    flashcard_stats: Dict[str, Any] = {}
+    quiz_stats: Dict[str, Any] = {}
+    chat_stats: Dict[str, Any] = {}
+    study_patterns: Dict[str, Any] = {}
+    learning_progress: Dict[str, Any] = {}
     recommendations: List[StudyRecommendation] = []
     generated_at: datetime = Field(default_factory=datetime.utcnow)
 

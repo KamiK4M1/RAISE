@@ -7,14 +7,12 @@ from app.models.quiz import (
     QuizGenerateRequest, QuizSubmission, QuizResponse, 
     QuizResults, QuizModel
 )
-from app.services.quiz_generator import quiz_generator
+from app.services.quiz_generator import get_quiz_generator_service, QuizGeneratorService
+from app.core.auth import get_current_user_id, get_current_user
 
 logger = logging.getLogger(__name__)
 
 router = APIRouter()
-
-async def get_current_user_id() -> str:
-    return "temp_user_123"
 
 @router.post("/generate/{doc_id}", response_model=QuizResponse)
 async def generate_quiz(

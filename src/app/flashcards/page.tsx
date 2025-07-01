@@ -45,34 +45,8 @@ export default function FlashcardsPage() {
         }
       } catch (error) {
         console.error('Error loading flashcards:', error)
-        setError(error instanceof Error ? error.message : 'Failed to load flashcards')
-        
-        // Fallback to mock data for demo
-        const mockCards: Flashcard[] = [
-          {
-            card_id: "1",
-            document_id: documentId,
-            question: "สมการเชิงเส้นคืออะไร?",
-            answer: "สมการเชิงเส้นคือสมการที่มีตัวแปรยกกำลังหนึ่ง และสามารถเขียนในรูป ax + b = 0 โดยที่ a และ b เป็นค่าคงที่ และ a ≠ 0",
-            difficulty: "easy",
-            ease_factor: 2.5,
-            interval: 1,
-            next_review: "2024-01-15",
-            review_count: 0
-          },
-          {
-            card_id: "2",
-            document_id: documentId,
-            question: "กฎของนิวตันข้อที่ 1 คืออะไร?",
-            answer: "กฎของนิวตันข้อที่ 1 หรือกฎความเฉื่อย กล่าวว่า วัตถุที่อยู่นิ่งจะอยู่นิ่งต่อไป และวัตถุที่เคลื่อนที่จะเคลื่อนที่ด้วยความเร็วคงที่ในแนวเส้นตรง เว้นแต่จะมีแรงภายนอกมากระทำ",
-            difficulty: "medium",
-            ease_factor: 2.5,
-            interval: 3,
-            next_review: "2024-01-16",
-            review_count: 1
-          }
-        ]
-        setFlashcards(mockCards)
+        const errorMessage = error instanceof Error ? error.message : 'ไม่สามารถโหลดแฟลชการ์ดได้'
+        setError(errorMessage)
       } finally {
         setLoading(false)
       }
@@ -156,13 +130,64 @@ export default function FlashcardsPage() {
   if (error) {
     return (
       <div className="min-h-screen bg-gray-50 flex items-center justify-center">
-        <div className="text-center">
-          <XCircle className="h-12 w-12 text-red-600 mx-auto mb-4" />
-          <h2 className="text-xl font-semibold text-gray-900 mb-2">เกิดข้อผิดพลาด</h2>
-          <p className="text-gray-600 mb-4">{error}</p>
-          <Button onClick={() => window.location.reload()} className="bg-blue-600 hover:bg-blue-700">
-            ลองใหม่
-          </Button>
+        <div className="text-center max-w-md mx-auto p-6">
+          <XCircle className="h-16 w-16 text-red-600 mx-auto mb-4" />
+          <h2 className="text-xl font-semibold text-gray-900 mb-2">ไม่สามารถโหลดแฟลชการ์ดได้</h2>
+          <p className="text-gray-600 mb-6">
+            {error.includes('Authentication') 
+              ? 'กรุณาเข้าสู่ระบบเพื่อใช้งานแฟลชการ์ด'
+              : 'เกิดข้อผิดพลาดในการเชื่อมต่อกับเซิร์ฟเวอร์ กรุณาตรวจสอบการเชื่อมต่ออินเทอร์เน็ตและลองใหม่'
+            }
+          </p>
+          <div className="space-y-3">
+            <Button 
+              onClick={() => {
+                setError(null);
+                setLoading(true);
+                // Trigger reload by calling the effect
+                const loadFlashcards = async () => {
+                  try {
+                    setLoading(true)
+                    const response = await apiService.getReviewSession(documentId, 10)
+                    
+                    if (response.success && response.data) {
+                      setFlashcards(response.data.cards)
+                      setCurrentCard(0)
+                      setShowAnswer(false)
+                      setSessionStartTime(Date.now())
+                      setCardStartTime(Date.now())
+                    } else {
+                      throw new Error(response.message || 'Failed to load flashcards')
+                    }
+                  } catch (error) {
+                    console.error('Error loading flashcards:', error)
+                    const errorMessage = error instanceof Error ? error.message : 'ไม่สามารถโหลดแฟลชการ์ดได้'
+                    setError(errorMessage)
+                  } finally {
+                    setLoading(false)
+                  }
+                }
+                loadFlashcards();
+              }} 
+              className="bg-blue-600 hover:bg-blue-700 w-full"
+            >
+              <RotateCcw className="h-4 w-4 mr-2" />
+              ลองใหม่
+            </Button>
+            {error.includes('Authentication') && (
+              <Link href="/login">
+                <Button variant="outline" className="w-full">
+                  เข้าสู่ระบบ
+                </Button>
+              </Link>
+            )}
+            <Link href="/dashboard">
+              <Button variant="outline" className="w-full">
+                <ArrowLeft className="h-4 w-4 mr-2" />
+                กลับหน้าหลัก
+              </Button>
+            </Link>
+          </div>
         </div>
       </div>
     )

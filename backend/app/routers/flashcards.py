@@ -9,15 +9,12 @@ from app.models.flashcard import (
     FlashcardResponse
 )
 from app.services.flashcard_generator import flashcard_generator
-from app.services.spaced_repetition import spaced_repetition
+from app.services.spaced_repetition import SpacedRepetitionService
+from app.core.auth import get_current_user_id, get_current_user
 
 logger = logging.getLogger(__name__)
 
 router = APIRouter()
-
-# Temporary user ID - in production, this should come from JWT token
-async def get_current_user_id() -> str:
-    return "temp_user_123"
 
 @router.post("/generate/{doc_id}", response_model=FlashcardResponse)
 async def generate_flashcards(

@@ -73,7 +73,8 @@ class DatabaseManager:
     
     def get_database(self) -> AsyncIOMotorDatabase:
         """Get database instance"""
-        if not self._is_connected or not self.db:
+        # ✨ FIX: Check for the database object by comparing it to None
+        if not self._is_connected or self.db is None:
             raise ConnectionError("Database not connected. Call connect() first.")
         return self.db
     

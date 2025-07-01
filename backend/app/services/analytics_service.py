@@ -1925,5 +1925,14 @@ class AnalyticsService(AdvancedAnalyticsService):
     pass
 
 # Global instances
-analytics_service = AnalyticsService()
-advanced_analytics_service = AdvancedAnalyticsService()
+# analytics_service = AnalyticsService()
+def get_analytics_service() -> AnalyticsService:
+    """
+    Dependency injector for the AnalyticsService.
+    """
+    return AnalyticsService()
+
+
+class AnalyticsService(AdvancedAnalyticsService):
+    """Backward compatible analytics service"""
+    pass

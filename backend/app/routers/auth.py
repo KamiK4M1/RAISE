@@ -5,7 +5,7 @@ import logging
 from datetime import datetime, timedelta
 from typing import Optional
 from jose import JWTError, jwt
-from fastapi import HTTPException, status, Depends
+from fastapi import HTTPException, status, Depends, APIRouter
 from fastapi.security import HTTPBearer, HTTPAuthorizationCredentials
 from passlib.context import CryptContext
 from app.config import settings
@@ -18,6 +18,8 @@ pwd_context = CryptContext(schemes=["bcrypt"], deprecated="auto")
 
 # JWT Security
 security = HTTPBearer()
+
+router = APIRouter()
 
 # JWT Configuration
 SECRET_KEY = settings.secret_key

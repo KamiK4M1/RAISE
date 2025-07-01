@@ -3,8 +3,9 @@ from typing import Any, Dict, List, Optional
 import logging
 from datetime import datetime
 
+from app.services.analytics_service import AnalyticsService, get_analytics_service
 from app.models.analytics import AnalyticsResponse
-from app.services.analytics_service import analytics_service
+
 
 logger = logging.getLogger(__name__)
 
@@ -16,11 +17,12 @@ async def get_current_user_id() -> str:
 @router.get("/user", response_model=AnalyticsResponse)
 async def get_user_analytics(
     days: int = Query(30, ge=1, le=365, description="Number of days to analyze"),
-    user_id: str = Depends(get_current_user_id)
+    user_id: str = Depends(get_current_user_id),
+    analytics_service_instance: AnalyticsService = Depends(get_analytics_service)
 ):
     """Get comprehensive analytics for the current user"""
     try:
-        analytics = await analytics_service.get_user_analytics(user_id, days)
+        analytics = await analytics_service_instance.get_user_analytics(user_id, days)
 
         return AnalyticsResponse(
             success=True,
@@ -36,11 +38,12 @@ async def get_user_analytics(
 @router.get("/document/{doc_id}", response_model=AnalyticsResponse)
 async def get_document_analytics(
     doc_id: str,
-    user_id: str = Depends(get_current_user_id)
+    user_id: str = Depends(get_current_user_id),
+    analytics_service_instance: AnalyticsService = Depends(get_analytics_service)
 ):
     """Get analytics for a specific document"""
     try:
-        analytics = await analytics_service.get_document_analytics(doc_id)
+        analytics = await analytics_service_instance.get_user_analytics(doc_id)
 
         if "error" in analytics:
             raise HTTPException(status_code=404, detail=analytics["error"])
@@ -61,7 +64,8 @@ async def get_document_analytics(
 @router.get("/progress", response_model=AnalyticsResponse)
 async def get_learning_progress(
     days: int = Query(30, ge=1, le=365, description="Number of days to analyze"),
-    user_id: str = Depends(get_current_user_id)
+    user_id: str = Depends(get_current_user_id),
+    analytics_service: AnalyticsService = Depends(get_analytics_service)
 ):
     """Get learning progress summary"""
     try:
@@ -91,7 +95,8 @@ async def get_learning_progress(
 
 @router.get("/recommendations", response_model=AnalyticsResponse)
 async def get_study_recommendations(
-    user_id: str = Depends(get_current_user_id)
+    user_id: str = Depends(get_current_user_id),
+    analytics_service: AnalyticsService = Depends(get_analytics_service)
 ):
     """Get personalized study recommendations"""
     try:
@@ -113,7 +118,8 @@ async def get_study_recommendations(
 
 @router.get("/system", response_model=AnalyticsResponse)
 async def get_system_analytics(
-    user_id: str = Depends(get_current_user_id)
+    user_id: str = Depends(get_current_user_id),
+    analytics_service: AnalyticsService = Depends(get_analytics_service)
 ):
     """Get system-wide analytics"""
     try:
@@ -141,7 +147,8 @@ async def track_learning_session(
     document_id: str,
     duration: int,
     details: dict = {},
-    user_id: str = Depends(get_current_user_id)
+    user_id: str = Depends(get_current_user_id),
+    analytics_service: AnalyticsService = Depends(get_analytics_service)
 ):
     """Track a learning session"""
     try:

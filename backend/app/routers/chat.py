@@ -6,7 +6,7 @@ import logging
 import json
 from datetime import datetime
 
-from app.services.rag_service import rag_service
+from app.services.rag_service import RAGService, get_rag_service
 from app.core.exceptions import RAGError
 
 logger = logging.getLogger(__name__)
@@ -36,7 +36,8 @@ async def get_current_user_id() -> str:
 @router.post("/ask", response_model=ChatResponse)
 async def ask_question(
     request: ChatRequest,
-    user_id: str = Depends(get_current_user_id)
+    user_id: str = Depends(get_current_user_id),
+    rag_service: RAGService = Depends(get_rag_service)
 ):
     """Ask a question using RAG across documents"""
     try:
@@ -48,6 +49,7 @@ async def ask_question(
             top_k=request.top_k,
             streaming=request.streaming
         )
+
         
         return ChatResponse(
             success=True,
@@ -75,7 +77,8 @@ async def ask_question(
 @router.post("/search", response_model=ChatResponse)
 async def search_documents(
     request: SearchRequest,
-    user_id: str = Depends(get_current_user_id)
+    user_id: str = Depends(get_current_user_id),
+    rag_service: RAGService = Depends(get_rag_service)
 ):
     """Search documents without generating answers"""
     try:
@@ -107,7 +110,8 @@ async def search_documents(
 @router.post("/ask-stream")
 async def ask_question_stream(
     request: ChatRequest,
-    user_id: str = Depends(get_current_user_id)
+    user_id: str = Depends(get_current_user_id),
+    rag_service: RAGService = Depends(get_rag_service)
 ):
     """Ask a question with streaming response"""
     try:
@@ -189,7 +193,8 @@ async def ask_question_stream(
 async def get_similar_questions(
     query: str,
     limit: int = 5,
-    user_id: str = Depends(get_current_user_id)
+    user_id: str = Depends(get_current_user_id),
+    rag_service: RAGService = Depends(get_rag_service)
 ):
     """Get similar questions for suggestion"""
     try:
@@ -214,7 +219,9 @@ async def get_similar_questions(
         raise HTTPException(status_code=500, detail="เกิดข้อผิดพลาดในการดึงคำถามที่คล้ายกัน")
 
 @router.get("/stats", response_model=ChatResponse)
-async def get_rag_statistics():
+async def get_rag_statistics(
+    rag_service: RAGService = Depends(get_rag_service)
+):
     """Get RAG system statistics"""
     try:
         stats = rag_service.get_search_statistics()
@@ -231,7 +238,9 @@ async def get_rag_statistics():
         raise HTTPException(status_code=500, detail="เกิดข้อผิดพลาดในการดึงสถิติ")
 
 @router.get("/health", response_model=ChatResponse)
-async def health_check():
+async def health_check(
+    rag_service: RAGService = Depends(get_rag_service)
+):
     """Health check for RAG system"""
     try:
         # Simple health check

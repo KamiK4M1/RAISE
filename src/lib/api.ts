@@ -18,22 +18,49 @@ const API_BASE_URL = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:8000';
 
 class ApiService {
   private baseURL: string;
+  private authToken: string | null = null;
   
   constructor(baseURL: string) {
     this.baseURL = baseURL;
+    // Try to get token from localStorage on initialization
+    if (typeof window !== 'undefined') {
+      this.authToken = localStorage.getItem('auth_token');
+    }
+  }
+
+  setAuthToken(token: string | null) {
+    this.authToken = token;
+    if (typeof window !== 'undefined') {
+      if (token) {
+        localStorage.setItem('auth_token', token);
+      } else {
+        localStorage.removeItem('auth_token');
+      }
+    }
+  }
+
+  getAuthToken(): string | null {
+    return this.authToken;
   }
 
   private async request<T>(
     endpoint: string,
     options: RequestInit = {}
   ): Promise<T> {
-    const url = `${this.baseURL}${endpoint}`;
+    const url = `${this.baseURL}${endpoint.startsWith('/') ? '' : '/api'}${endpoint}`;
+    
+    const headers: Record<string, string> = {
+      'Content-Type': 'application/json',
+      ...options.headers as Record<string, string>,
+    };
+
+    // Add authentication header if token is available
+    if (this.authToken) {
+      headers['Authorization'] = `Bearer ${this.authToken}`;
+    }
     
     const config: RequestInit = {
-      headers: {
-        'Content-Type': 'application/json',
-        ...options.headers,
-      },
+      headers,
       ...options,
     };
 
@@ -41,8 +68,17 @@ class ApiService {
       const response = await fetch(url, config);
       
       if (!response.ok) {
+        // Handle authentication errors
+        if (response.status === 401) {
+          this.setAuthToken(null);
+          if (typeof window !== 'undefined') {
+            window.location.href = '/login';
+          }
+          throw new Error('Authentication required. Please log in again.');
+        }
+        
         const errorData = await response.json().catch(() => ({}));
-        throw new Error(errorData.message || `HTTP ${response.status}: ${response.statusText}`);
+        throw new Error(errorData.message || errorData.detail || `HTTP ${response.status}: ${response.statusText}`);
       }
 
       return await response.json();
@@ -56,17 +92,74 @@ class ApiService {
     const formData = new FormData();
     formData.append('file', file);
 
-    const response = await fetch(`${this.baseURL}${endpoint}`, {
+    const headers: Record<string, string> = {};
+    
+    // Add authentication header if token is available
+    if (this.authToken) {
+      headers['Authorization'] = `Bearer ${this.authToken}`;
+    }
+
+    const response = await fetch(`${this.baseURL}${endpoint.startsWith('/') ? '' : '/api'}${endpoint}`, {
       method: 'POST',
+      headers,
       body: formData,
     });
 
     if (!response.ok) {
+      // Handle authentication errors
+      if (response.status === 401) {
+        this.setAuthToken(null);
+        if (typeof window !== 'undefined') {
+          window.location.href = '/login';
+        }
+        throw new Error('Authentication required. Please log in again.');
+      }
+      
       const errorData = await response.json().catch(() => ({}));
-      throw new Error(errorData.message || `HTTP ${response.status}: ${response.statusText}`);
+      throw new Error(errorData.message || errorData.detail || `HTTP ${response.status}: ${response.statusText}`);
     }
 
     return await response.json();
+  }
+
+  // Authentication endpoints
+  async login(email: string, password: string): Promise<ApiResponse<{access_token: string, user: any}>> {
+    const response = await this.request('/auth/login', {
+      method: 'POST',
+      body: JSON.stringify({ email, password }),
+    });
+    
+    // Store the token after successful login
+    if (response.success && response.data?.access_token) {
+      this.setAuthToken(response.data.access_token);
+    }
+    
+    return response;
+  }
+
+  async register(email: string, password: string, name: string): Promise<ApiResponse<{access_token: string, user: any}>> {
+    const response = await this.request('/auth/register', {
+      method: 'POST',
+      body: JSON.stringify({ email, password, name }),
+    });
+    
+    // Store the token after successful registration
+    if (response.success && response.data?.access_token) {
+      this.setAuthToken(response.data.access_token);
+    }
+    
+    return response;
+  }
+
+  async logout(): Promise<void> {
+    this.setAuthToken(null);
+    if (typeof window !== 'undefined') {
+      window.location.href = '/login';
+    }
+  }
+
+  async getCurrentUser(): Promise<ApiResponse<any>> {
+    return this.request('/auth/me');
   }
 
   // Document endpoints
