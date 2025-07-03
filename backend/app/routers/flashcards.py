@@ -8,6 +8,7 @@ from app.models.flashcard import (
     FlashcardAnswer,
     FlashcardResponse
 )
+from app.services.flashcard_service import flashcard_service
 from app.services.flashcard_generator import flashcard_generator
 # FIX 1: Import the getter function instead of the class
 from app.services.spaced_repetition import get_spaced_repetition_service
@@ -49,11 +50,50 @@ async def generate_flashcards(
                 ]
             },
             message=f"สร้างบัตรคำศัพท์ {len(flashcards)} ใบสำเร็จ",
-            timestamp=datetime.utcnow().isoformat() + "Z"
+            timestamp=datetime.datetime.utcnow().isoformat() + "Z"
         )
         
     except Exception as e:
         logger.error(f"Error generating flashcards: {e}")
+        raise HTTPException(status_code=400, detail=str(e))
+
+@router.post("/generate-from-topic", response_model=FlashcardResponse)
+async def generate_flashcards_from_topic(
+    topic: str = Form(...),
+    count: int = Form(10),
+    difficulty: str = Form("medium"),
+    user_id: str = Depends(get_current_user_id)
+):
+    """Generate flashcards from topic"""
+    try:
+        flashcards = await flashcard_generator.generate_flashcards_from_topic(
+            topic=topic,
+            user_id=user_id,
+            count=count,
+            difficulty=difficulty
+        )
+        
+        return FlashcardResponse(
+            success=True,
+            data={
+                "topic": topic,
+                "flashcards_generated": len(flashcards),
+                "flashcards": [
+                    {
+                        "card_id": card.card_id,
+                        "question": card.question,
+                        "answer": card.answer,
+                        "difficulty": card.difficulty
+                    }
+                    for card in flashcards
+                ]
+            },
+            message=f"สร้างบัตรคำศัพท์ {len(flashcards)} ใบจากหัวข้อ '{topic}' สำเร็จ",
+            timestamp=datetime.datetime.utcnow().isoformat() + "Z"
+        )
+        
+    except Exception as e:
+        logger.error(f"Error generating flashcards from topic: {e}")
         raise HTTPException(status_code=400, detail=str(e))
 
 @router.get("/session/{doc_id}", response_model=FlashcardResponse)
@@ -96,7 +136,7 @@ async def get_review_session(
                 ]
             },
             message=f"เซสชันทบทวน {len(session.cards)} บัตรพร้อมแล้ว",
-            timestamp=datetime.utcnow().isoformat() + "Z"
+            timestamp=datetime.datetime.utcnow().isoformat() + "Z"
         )
         
     except Exception as e:
@@ -121,7 +161,7 @@ async def submit_flashcard_answer(
             success=True,
             data=result,
             message="ประมวลผลคำตอบสำเร็จ",
-            timestamp=datetime.utcnow().isoformat() + "Z"
+            timestamp=datetime.datetime.utcnow().isoformat() + "Z"
         )
         
     except Exception as e:
@@ -150,7 +190,7 @@ async def get_review_schedule(
                 "schedule": schedule
             },
             message="ดึงตารางทบทวนสำเร็จ",
-            timestamp=datetime.utcnow().isoformat() + "Z"
+            timestamp=datetime.datetime.utcnow().isoformat() + "Z"
         )
         
     except Exception as e:
@@ -176,7 +216,7 @@ async def get_flashcard_stats(
                 "stats": stats.dict()
             },
             message="ดึงสถิติบัตรคำศัพท์สำเร็จ",
-            timestamp=datetime.utcnow().isoformat() + "Z"
+            timestamp=datetime.datetime.utcnow().isoformat() + "Z"
         )
         
     except Exception as e:
@@ -199,7 +239,7 @@ async def reset_flashcard(
             success=True,
             data={"card_id": card_id},
             message="รีเซ็ตความคืบหน้าบัตรคำศัพท์สำเร็จ",
-            timestamp=datetime.utcnow().isoformat() + "Z"
+            timestamp=datetime.datetime.utcnow().isoformat() + "Z"
         )
         
     except HTTPException:
@@ -224,7 +264,7 @@ async def delete_flashcard(
             success=True,
             data={"card_id": card_id},
             message="ลบบัตรคำศัพท์สำเร็จ",
-            timestamp=datetime.utcnow().isoformat() + "Z"
+            timestamp=datetime.datetime.utcnow().isoformat() + "Z"
         )
         
     except HTTPException:
@@ -258,9 +298,50 @@ async def submit_batch_answers(
                 "results": results
             },
             message=f"ประมวลผลคำตอบ {len(results)} ข้อสำเร็จ",
-            timestamp=datetime.utcnow().isoformat() + "Z"
+            timestamp=datetime.datetime.utcnow().isoformat() + "Z"
         )
         
     except Exception as e:
         logger.error(f"Error processing batch answers: {e}")
         raise HTTPException(status_code=400, detail=str(e))
+
+@router.get("/all", response_model=FlashcardResponse)
+async def get_all_user_flashcards(
+    skip: int = 0,
+    limit: int = 50,
+    user_id: str = Depends(get_current_user_id)
+):
+    """Get all flashcards for the current user"""
+    try:
+        flashcards = await flashcard_generator.get_user_flashcards(
+            user_id=user_id,
+            skip=skip,
+            limit=limit
+        )
+        
+        flashcard_data = []
+        for card in flashcards:
+            flashcard_data.append({
+                "card_id": card.card_id,
+                "document_id": card.document_id,
+                "question": card.question,
+                "answer": card.answer,
+                "difficulty": card.difficulty,
+                "next_review": card.next_review,
+                "review_count": card.review_count,
+                "created_at": card.created_at
+            })
+        
+        return FlashcardResponse(
+            success=True,
+            data={
+                "flashcards": flashcard_data,
+                "total": len(flashcard_data)
+            },
+            message=f"ดึงแฟลชการ์ด {len(flashcard_data)} ใบสำเร็จ",
+            timestamp=datetime.datetime.utcnow().isoformat() + "Z"
+        )
+        
+    except Exception as e:
+        logger.error(f"Error getting user flashcards: {e}")
+        raise HTTPException(status_code=500, detail="Error retrieving flashcards")

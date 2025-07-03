@@ -1,18 +1,16 @@
 from fastapi import APIRouter, HTTPException, Depends, Query
 from typing import Any, Dict, List, Optional
 import logging
-from datetime import datetime
+from datetime import datetime, timezone
 
 from app.services.analytics_service import AnalyticsService, get_analytics_service
 from app.models.analytics import AnalyticsResponse
+from app.core.dependencies import get_current_user_id
 
 
 logger = logging.getLogger(__name__)
 
 router = APIRouter()
-
-async def get_current_user_id() -> str:
-    return "temp_user_123"
 
 @router.get("/user", response_model=AnalyticsResponse)
 async def get_user_analytics(
@@ -28,7 +26,7 @@ async def get_user_analytics(
             success=True,
             data=analytics.dict(),
             message=f"Analytics for the last {days} days retrieved successfully.",
-            timestamp=datetime.utcnow().isoformat() + "Z"
+            timestamp=datetime.now(timezone.utc).isoformat() + "Z"
         )
 
     except Exception as e:
@@ -52,7 +50,7 @@ async def get_document_analytics(
             success=True,
             data=analytics,
             message="Document analytics retrieved successfully.",
-            timestamp=datetime.utcnow().isoformat() + "Z"
+            timestamp=datetime.now(timezone.utc).isoformat() + "Z"
         )
 
     except HTTPException:
@@ -86,7 +84,7 @@ async def get_learning_progress(
             success=True,
             data=progress_data,
             message="Learning progress retrieved successfully.",
-            timestamp=datetime.utcnow().isoformat() + "Z"
+            timestamp=datetime.now(timezone.utc).isoformat() + "Z"
         )
 
     except Exception as e:
@@ -109,7 +107,7 @@ async def get_study_recommendations(
                 "total_recommendations": len(analytics.recommendations)
             },
             message="Study recommendations retrieved successfully.",
-            timestamp=datetime.utcnow().isoformat() + "Z"
+            timestamp=datetime.now(timezone.utc).isoformat() + "Z"
         )
 
     except Exception as e:
@@ -132,7 +130,7 @@ async def get_system_analytics(
             success=True,
             data=analytics,
             message="System analytics retrieved successfully.",
-            timestamp=datetime.utcnow().isoformat() + "Z"
+            timestamp=datetime.now(timezone.utc).isoformat() + "Z"
         )
 
     except HTTPException:
@@ -168,9 +166,30 @@ async def track_learning_session(
                 "duration": duration
             },
             message="Learning session tracked successfully.",
-            timestamp=datetime.utcnow().isoformat() + "Z"
+            timestamp=datetime.now(timezone.utc).isoformat() + "Z"
         )
 
     except Exception as e:
         logger.error(f"Error tracking learning session: {e}")
         raise HTTPException(status_code=400, detail="Error tracking learning session.")
+
+@router.get("/recent-activity", response_model=AnalyticsResponse)
+async def get_recent_activity(
+    limit: int = Query(10, ge=1, le=50, description="Number of recent activities to return"),
+    user_id: str = Depends(get_current_user_id),
+    analytics_service: AnalyticsService = Depends(get_analytics_service)
+):
+    """Get recent user activities"""
+    try:
+        activities = await analytics_service.get_recent_activities(user_id, limit)
+
+        return AnalyticsResponse(
+            success=True,
+            data={"activities": activities, "total": len(activities)},
+            message="Recent activities retrieved successfully.",
+            timestamp=datetime.now(timezone.utc).isoformat() + "Z"
+        )
+
+    except Exception as e:
+        logger.error(f"Error getting recent activities: {e}")
+        raise HTTPException(status_code=500, detail="Error retrieving recent activities.")

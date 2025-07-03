@@ -2,7 +2,7 @@
 JWT Authentication and security utilities using MongoDB
 """
 import logging
-from datetime import datetime, timedelta
+from datetime import datetime, timedelta, timezone
 from typing import Optional
 from jose import JWTError, jwt
 from fastapi import HTTPException, status, Depends
@@ -37,9 +37,9 @@ def create_access_token(data: dict, expires_delta: Optional[timedelta] = None):
     """Create JWT access token"""
     to_encode = data.copy()
     if expires_delta:
-        expire = datetime.utcnow() + expires_delta
+        expire = datetime.now(timezone.utc) + expires_delta
     else:
-        expire = datetime.utcnow() + timedelta(minutes=ACCESS_TOKEN_EXPIRE_MINUTES)
+        expire = datetime.now(timezone.utc) + timedelta(minutes=ACCESS_TOKEN_EXPIRE_MINUTES)
     
     to_encode.update({"exp": expire})
     encoded_jwt = jwt.encode(to_encode, SECRET_KEY, algorithm=ALGORITHM)
@@ -89,6 +89,11 @@ async def get_current_user(credentials: HTTPAuthorizationCredentials = Depends(s
     # Convert ObjectId to string for compatibility
     user["id"] = str(user["_id"])
     del user["_id"]
+
+    # Ensure all fields expected by UserResponse are present
+    user["emailVerified"] = user.get("email_verified")
+    user["createdAt"] = user.get("created_at", datetime.now(timezone.utc))
+    user["updatedAt"] = user.get("updated_at", datetime.now(timezone.utc))
     
     return user
 
@@ -107,13 +112,38 @@ async def get_current_user_optional(credentials: HTTPAuthorizationCredentials = 
 
 async def authenticate_user(email: str, password: str):
     """Authenticate user with email and password"""
+    logger.info(f"Attempting to authenticate user: {email}")
     users_collection = mongodb_manager.get_users_collection()
     user = await users_collection.find_one({"email": email})
     
     if not user:
-        return False
-    if not user.get("password"):
-        return False
-    if not verify_password(password, user["password"]):
-        return False
+        logger.warning(f"Authentication failed: User with email '{email}' not found.")
+        return None
+    
+    logger.info(f"User '{email}' found. Verifying password.")
+    
+    stored_password_hash = user.get("password")
+    if not stored_password_hash:
+        logger.error(f"Authentication failed: User '{email}' has no password stored in the database.")
+        return None
+
+    if not verify_password(password, stored_password_hash):
+        logger.warning(f"Authentication failed: Invalid password for user '{email}'.")
+        return None
+    
+    logger.info(f"Authentication successful for user: {email}")
+    
+    # Convert ObjectId to string for consistency
+    user["id"] = str(user["_id"])
+    del user["_id"]
+    
+    # Fix field name mapping for UserResponse
+    user["emailVerified"] = user.pop("email_verified", None)
+    user["createdAt"] = user.pop("created_at", datetime.now(timezone.utc))
+    user["updatedAt"] = user.pop("updated_at", datetime.now(timezone.utc))
+    
+    # Ensure image field exists (it's optional but required by the model)
+    if "image" not in user:
+        user["image"] = None
+    
     return user

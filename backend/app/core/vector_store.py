@@ -75,7 +75,7 @@ class PerformanceMonitor:
         self.cache_hits = 0
         self.cache_misses = 0
         self.operation_counts = {}
-        self.last_reset = datetime.utcnow()
+        self.last_reset = datetime.datetime.utcnow()
     
     def record_search_time(self, duration_ms: float):
         """Record search operation duration"""
@@ -113,7 +113,7 @@ class PerformanceMonitor:
             "cache_hit_rate": self.cache_hit_rate,
             "total_searches": len(self.search_times),
             "operation_counts": self.operation_counts.copy(),
-            "uptime_hours": (datetime.utcnow() - self.last_reset).total_seconds() / 3600
+            "uptime_hours": (datetime.datetime.utcnow() - self.last_reset).total_seconds() / 3600
         }
 
 class VectorStore:
@@ -381,8 +381,8 @@ class VectorStore:
                 "embedding": embedding,
                 "chunk_index": vector_data.get("chunk_index", 0),
                 "metadata": vector_data.get("metadata", {}),
-                "created_at": datetime.utcnow(),
-                "updated_at": datetime.utcnow()
+                "created_at": datetime.datetime.utcnow(),
+                "updated_at": datetime.datetime.utcnow()
             }
             documents.append(doc)
         
@@ -794,7 +794,7 @@ class VectorStore:
             # Check cache first
             if self.enable_cache and vector_id in self._vector_cache:
                 cached_data, cached_time = self._vector_cache[vector_id]
-                if datetime.utcnow() - cached_time < self._cache_ttl:
+                if datetime.datetime.utcnow() - cached_time < self._cache_ttl:
                     self.monitor.record_cache_hit()
                     # Return cached result (implement cache structure as needed)
                 else:
@@ -817,7 +817,7 @@ class VectorStore:
             if doc:
                 # Update cache
                 if self.enable_cache and include_embedding and "embedding" in doc:
-                    self._vector_cache[vector_id] = (doc["embedding"], datetime.utcnow())
+                    self._vector_cache[vector_id] = (doc["embedding"], datetime.datetime.utcnow())
                 
                 return VectorSearchResult(
                     id=doc["vector_id"],
@@ -855,7 +855,7 @@ class VectorStore:
         
         try:
             # Prepare update document
-            update_doc = {"$set": {"updated_at": datetime.utcnow()}}
+            update_doc = {"$set": {"updated_at": datetime.datetime.utcnow()}}
             
             # Handle different update types
             if "text" in updates:
@@ -923,7 +923,7 @@ class VectorStore:
                 avg_search_time_ms=perf_stats["avg_search_time_ms"],
                 cache_hit_rate=perf_stats["cache_hit_rate"],
                 memory_usage_mb=memory_usage_mb,
-                last_optimization=datetime.utcnow()  # Could track actual optimization time
+                last_optimization=datetime.datetime.utcnow()  # Could track actual optimization time
             )
             
         except Exception as e:
@@ -934,7 +934,7 @@ class VectorStore:
                 avg_search_time_ms=0.0,
                 cache_hit_rate=0.0,
                 memory_usage_mb=0.0,
-                last_optimization=datetime.utcnow()
+                last_optimization=datetime.datetime.utcnow()
             )
     
     async def optimize_index(self) -> Dict[str, Any]:
@@ -965,7 +965,7 @@ class VectorStore:
             except Exception:
                 pass
             
-            optimization_results["optimization_timestamp"] = datetime.utcnow().isoformat()
+            optimization_results["optimization_timestamp"] = datetime.datetime.utcnow().isoformat()
             self.monitor.record_operation("optimize_index")
             
             logger.info(f"Index optimization completed: {optimization_results}")
@@ -973,7 +973,7 @@ class VectorStore:
             
         except Exception as e:
             logger.error(f"Index optimization failed: {e}")
-            return {"error": str(e), "optimization_timestamp": datetime.utcnow().isoformat()}
+            return {"error": str(e), "optimization_timestamp": datetime.datetime.utcnow().isoformat()}
     
     @asynccontextmanager
     async def batch_context(self, batch_size: int = 1000):

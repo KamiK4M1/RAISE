@@ -30,12 +30,12 @@ class FlashcardGenerator:
     ) -> List[Flashcard]:
         """Generate flashcards from document content"""
         try:
-            spaced_repetition = await get_spaced_repetition_service()
+            spaced_repetition = get_spaced_repetition_service()
             document = await document_processor.get_document(document_id, user_id)
             if not document:
                 raise ModelError("ไม่พบเอกสารที่ร้องขอ")
             
-            if document.processing_status != "completed":
+            if document.status != "completed":
                 raise ModelError("เอกสารยังไม่ได้ประมวลผลเสร็จสิ้น")
             
             content = document.content
@@ -68,9 +68,9 @@ class FlashcardGenerator:
                     difficulty=card_data.get("difficulty", difficulty),
                     ease_factor=spaced_repetition.default_ease_factor,
                     interval=spaced_repetition.initial_interval,
-                    next_review=datetime.utcnow(),
-                    created_at=datetime.utcnow(),
-                    updated_at=datetime.utcnow()
+                    next_review=datetime.datetime.utcnow(),
+                    created_at=datetime.datetime.utcnow(),
+                    updated_at=datetime.datetime.utcnow()
                 )
                 
                 await collection.insert_one(flashcard.dict(by_alias=True, exclude={"id"}))
@@ -83,6 +83,71 @@ class FlashcardGenerator:
             logger.error(f"Error generating flashcards: {e}")
             raise ModelError(f"เกิดข้อผิดพลาดในการสร้างบัตรคำศัพท์: {str(e)}")
 
+    async def generate_flashcards_from_topic(
+        self,
+        topic: str,
+        user_id: str,
+        count: int = 10,
+        difficulty: str = "medium"
+    ) -> List[Flashcard]:
+        """Generate flashcards from a topic without requiring a document"""
+        try:
+            spaced_repetition = get_spaced_repetition_service()
+            
+            logger.info(f"Generating {count} flashcards for topic: {topic}")
+            
+            # Create a prompt for the AI to generate flashcards about the topic
+            topic_prompt = f"""Create educational flashcards about the topic: {topic}
+            
+Generate {count} flashcards with questions and answers that cover:
+            - Key concepts and definitions
+            - Important facts and information
+            - Practical applications
+            - Examples and illustrations
+            
+Ensure the flashcards are:
+            - Clear and concise
+            - Appropriate for {difficulty} difficulty level
+            - Educational and informative
+            - Varied in question types (definitions, examples, applications)
+            """
+            
+            flashcard_data = await together_ai.generate_flashcards_from_prompt(topic_prompt, count)
+            
+            flashcards = []
+            collection = await get_flashcards_collection()
+            
+            for i, card_data in enumerate(flashcard_data):
+                card_id = str(uuid.uuid4())
+                
+                flashcard = Flashcard(
+                    card_id=card_id,
+                    document_id=f"topic_{topic.replace(' ', '_').lower()}",  # Create a pseudo document ID
+                    question=card_data.get("question", ""),
+                    answer=card_data.get("answer", ""),
+                    difficulty=card_data.get("difficulty", difficulty),
+                    ease_factor=spaced_repetition.default_ease_factor,
+                    interval=spaced_repetition.initial_interval,
+                    next_review=datetime.datetime.utcnow(),
+                    created_at=datetime.datetime.utcnow(),
+                    updated_at=datetime.datetime.utcnow()
+                )
+                
+                # Add user_id to the flashcard document
+                flashcard_dict = flashcard.dict(by_alias=True, exclude={"id"})
+                flashcard_dict["user_id"] = user_id
+                flashcard_dict["topic"] = topic
+                
+                await collection.insert_one(flashcard_dict)
+                flashcards.append(flashcard)
+            
+            logger.info(f"Generated {len(flashcards)} flashcards from topic '{topic}' successfully")
+            return flashcards
+            
+        except Exception as e:
+            logger.error(f"Error generating flashcards from topic: {e}")
+            raise ModelError(f"เกิดข้อผิดพลาดในการสร้างบัตรคำศัพท์จากหัวข้อ: {str(e)}")
+
     async def get_review_session(
         self,
         document_id: str,
@@ -94,9 +159,10 @@ class FlashcardGenerator:
             # FIX: Call the helper function to get the collection
             collection = await get_flashcards_collection()
             
-            now = datetime.utcnow()
+            now = datetime.datetime.utcnow()
             cursor = collection.find({
                 "document_id": document_id,
+                "user_id": user_id,
                 "next_review": {"$lte": now}
             }).sort("next_review", 1).limit(session_size)
             
@@ -110,6 +176,7 @@ class FlashcardGenerator:
                 remaining = session_size - len(cards)
                 cursor = collection.find({
                     "document_id": document_id,
+                    "user_id": user_id,
                     "next_review": {"$gt": now}
                 }).sort("next_review", 1).limit(remaining)
                 
@@ -123,7 +190,7 @@ class FlashcardGenerator:
                 session_id=session_id,
                 document_id=document_id,
                 cards=cards,
-                started_at=datetime.utcnow()
+                started_at=datetime.datetime.utcnow()
             )
             
             return session
@@ -131,6 +198,31 @@ class FlashcardGenerator:
         except Exception as e:
             logger.error(f"Error getting review session: {e}")
             raise DatabaseError(f"เกิดข้อผิดพลาดในการสร้างเซสชันทบทวน: {str(e)}")
+
+    async def get_user_flashcards(
+        self,
+        user_id: str,
+        skip: int = 0,
+        limit: int = 50
+    ) -> List[Flashcard]:
+        """Get all flashcards for a user"""
+        try:
+            collection = await get_flashcards_collection()
+            
+            cursor = collection.find({
+                "user_id": user_id
+            }).sort("created_at", -1).skip(skip).limit(limit)
+            
+            cards = []
+            async for card_data in cursor:
+                card = Flashcard(**card_data)
+                cards.append(card)
+            
+            return cards
+            
+        except Exception as e:
+            logger.error(f"Error getting user flashcards: {e}")
+            return []
 
     async def process_answer(
         self,
@@ -151,7 +243,7 @@ class FlashcardGenerator:
             card = Flashcard(**card_data)
             
             # FIX: Get the spaced_repetition service
-            spaced_repetition = await get_spaced_repetition_service()
+            spaced_repetition = get_spaced_repetition_service()
             new_ease_factor, new_interval, next_review = spaced_repetition.calculate_next_review(
                 card.ease_factor,
                 card.interval,
@@ -170,7 +262,7 @@ class FlashcardGenerator:
                 "review_count": new_review_count,
                 "correct_count": new_correct_count,
                 "incorrect_count": new_incorrect_count,
-                "updated_at": datetime.utcnow()
+                "updated_at": datetime.datetime.utcnow()
             }
             
             await collection.update_one(
@@ -206,11 +298,12 @@ class FlashcardGenerator:
         try:
             collection = await get_flashcards_collection()
             
-            start_date = datetime.utcnow().replace(hour=0, minute=0, second=0, microsecond=0)
+            start_date = datetime.datetime.utcnow().replace(hour=0, minute=0, second=0, microsecond=0)
             end_date = start_date + timedelta(days=days_ahead)
             
             cursor = collection.find({
                 "document_id": document_id,
+                "user_id": user_id,
                 "next_review": {
                     "$gte": start_date,
                     "$lt": end_date
@@ -218,7 +311,7 @@ class FlashcardGenerator:
             }).sort("next_review", 1)
             
             schedule = {}
-            spaced_repetition = await get_spaced_repetition_service()
+            spaced_repetition = get_spaced_repetition_service()
             async for card_data in cursor:
                 # FIX: Use the correct Flashcard model
                 card = Flashcard(**card_data)
@@ -251,7 +344,10 @@ class FlashcardGenerator:
         try:
             collection = await get_flashcards_collection()
             
-            cursor = collection.find({"document_id": document_id})
+            cursor = collection.find({
+                "document_id": document_id,
+                "user_id": user_id
+            })
             
             total_cards = 0
             due_today = 0
@@ -260,7 +356,7 @@ class FlashcardGenerator:
             mastered = 0
             ease_factors = []
             
-            today = datetime.utcnow().date()
+            today = datetime.datetime.utcnow().date()
             
             async for card_data in cursor:
                 # FIX: Use the correct Flashcard model
@@ -306,7 +402,7 @@ class FlashcardGenerator:
             collection = await get_flashcards_collection()
             
             # FIX: Get the spaced_repetition service to access its properties
-            spaced_repetition = await get_spaced_repetition_service()
+            spaced_repetition = get_spaced_repetition_service()
             
             result = await collection.update_one(
                 {"card_id": card_id},
@@ -314,11 +410,11 @@ class FlashcardGenerator:
                     "$set": {
                         "ease_factor": spaced_repetition.default_ease_factor,
                         "interval": spaced_repetition.initial_interval,
-                        "next_review": datetime.utcnow(),
+                        "next_review": datetime.datetime.utcnow(),
                         "review_count": 0,
                         "correct_count": 0,
                         "incorrect_count": 0,
-                        "updated_at": datetime.utcnow()
+                        "updated_at": datetime.datetime.utcnow()
                     }
                 }
             )

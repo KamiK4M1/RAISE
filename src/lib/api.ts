@@ -47,7 +47,7 @@ class ApiService {
     endpoint: string,
     options: RequestInit = {}
   ): Promise<T> {
-    const url = `${this.baseURL}${endpoint.startsWith('/') ? '' : '/api'}${endpoint}`;
+    const url = `${this.baseURL}${endpoint.startsWith('/api') ? '' : '/api'}${endpoint}`;
     
     const headers: Record<string, string> = {
       'Content-Type': 'application/json',
@@ -98,8 +98,8 @@ class ApiService {
     if (this.authToken) {
       headers['Authorization'] = `Bearer ${this.authToken}`;
     }
-
-    const response = await fetch(`${this.baseURL}${endpoint.startsWith('/') ? '' : '/api'}${endpoint}`, {
+    console.log(`Uploading file to ${this.baseURL}${endpoint.startsWith('/api') ? '' : '/api'}${endpoint}`);
+    const response = await fetch(`${this.baseURL}${endpoint.startsWith('/api') ? '' : '/api'}${endpoint}`, {
       method: 'POST',
       headers,
       body: formData,
@@ -124,7 +124,7 @@ class ApiService {
 
   // Authentication endpoints
   async login(email: string, password: string): Promise<ApiResponse<{access_token: string, user: any}>> {
-    const response = await this.request('/auth/login', {
+    const response = await this.request<ApiResponse<{access_token: string, user: any}>>('/auth/login', {
       method: 'POST',
       body: JSON.stringify({ email, password }),
     });
@@ -138,7 +138,7 @@ class ApiService {
   }
 
   async register(email: string, password: string, name: string): Promise<ApiResponse<{access_token: string, user: any}>> {
-    const response = await this.request('/auth/register', {
+    const response = await this.request<ApiResponse<{access_token: string, user: any}>>('/auth/register', {
       method: 'POST',
       body: JSON.stringify({ email, password, name }),
     });
@@ -167,8 +167,8 @@ class ApiService {
     return this.uploadFile('/documents/upload', file);
   }
 
-  async getDocuments(): Promise<ApiResponse<Document[]>> {
-    return this.request('/documents');
+  async listDocuments(): Promise<ApiResponse<Document[]>> {
+    return this.request('/documents/list');
   }
 
   async getDocument(docId: string): Promise<ApiResponse<Document>> {
@@ -181,6 +181,23 @@ class ApiService {
     });
   }
 
+  async reprocessDocument(docId: string): Promise<ApiResponse<any>> {
+    return this.request(`/documents/${docId}/process`, {
+      method: 'POST',
+    });
+  }
+
+  async getDocumentStats(docId: string): Promise<ApiResponse<any>> {
+    return this.request(`/documents/${docId}/stats`);
+  }
+
+  async searchDocument(docId: string, query: string): Promise<ApiResponse<any>> {
+    return this.request(`/documents/${docId}/search`, {
+      method: 'POST',
+      body: JSON.stringify({ query }),
+    });
+  }
+
   // Flashcard endpoints
   async generateFlashcards(docId: string, options: FlashcardOptions): Promise<ApiResponse<Flashcard[]>> {
     return this.request(`/flashcards/generate/${docId}`, {
@@ -189,15 +206,58 @@ class ApiService {
     });
   }
 
+  async generateFlashcardsFromTopic(topic: string, count: number = 10, difficulty: string = 'medium'): Promise<ApiResponse<Flashcard[]>> {
+    const formData = new FormData();
+    formData.append('topic', topic);
+    formData.append('count', count.toString());
+    formData.append('difficulty', difficulty);
+    
+    return this.request('/flashcards/generate-from-topic', {
+      method: 'POST',
+      body: formData,
+    });
+  }
+
   async getReviewSession(docId: string, sessionSize?: number): Promise<ApiResponse<FlashcardSession>> {
     const params = sessionSize ? `?session_size=${sessionSize}` : '';
-    return this.request(`/flashcards/review/${docId}${params}`);
+    return this.request(`/flashcards/session/${docId}${params}`);
   }
 
   async submitFlashcardAnswer(answer: FlashcardAnswer): Promise<ApiResponse<any>> {
     return this.request('/flashcards/answer', {
       method: 'POST',
       body: JSON.stringify(answer),
+    });
+  }
+
+  async getReviewSchedule(docId: string): Promise<ApiResponse<any>> {
+    return this.request(`/flashcards/review-schedule/${docId}`);
+  }
+
+  async getFlashcardStats(docId: string): Promise<ApiResponse<any>> {
+    return this.request(`/flashcards/stats/${docId}`);
+  }
+
+  async resetFlashcard(cardId: string): Promise<ApiResponse<any>> {
+    return this.request(`/flashcards/${cardId}/reset`, {
+      method: 'POST',
+    });
+  }
+
+  async deleteFlashcard(cardId: string): Promise<ApiResponse<any>> {
+    return this.request(`/flashcards/${cardId}`, {
+      method: 'DELETE',
+    });
+  }
+
+  async getAllUserFlashcards(skip: number = 0, limit: number = 50): Promise<ApiResponse<any>> {
+    return this.request(`/flashcards/all?skip=${skip}&limit=${limit}`);
+  }
+
+  async submitBatchAnswers(answers: FlashcardAnswer[]): Promise<ApiResponse<any>> {
+    return this.request('/flashcards/batch-answer', {
+      method: 'POST',
+      body: JSON.stringify({ answers }),
     });
   }
 
@@ -213,6 +273,12 @@ class ApiService {
     return this.request(`/quiz/${quizId}`);
   }
 
+  async deleteQuiz(quizId: string): Promise<ApiResponse<any>> {
+    return this.request(`/quiz/${quizId}`, {
+      method: 'DELETE',
+    });
+  }
+
   async submitQuiz(quizId: string, answers: string[], timeTaken: number): Promise<ApiResponse<QuizResults>> {
     return this.request(`/quiz/${quizId}/submit`, {
       method: 'POST',
@@ -223,9 +289,33 @@ class ApiService {
     });
   }
 
+  async getQuizResults(quizId: string, attemptId: string): Promise<ApiResponse<QuizResults>> {
+    return this.request(`/quiz/${quizId}/results/${attemptId}`);
+  }
+
+  async getQuizHistory(docId: string): Promise<ApiResponse<any>> {
+    return this.request(`/quiz/history/${docId}`);
+  }
+
+  async getUserQuizHistory(): Promise<ApiResponse<any>> {
+    return this.request('/quiz/user/history');
+  }
+
+  async getQuizAnalytics(quizId: string): Promise<ApiResponse<any>> {
+    return this.request(`/quiz/${quizId}/analytics`);
+  }
+
+  async getQuestionsByDifficulty(quizId: string, level: string): Promise<ApiResponse<any>> {
+    return this.request(`/quiz/${quizId}/difficulty/${level}`);
+  }
+
+  async getQuestionsByBloomLevel(quizId: string, level: string): Promise<ApiResponse<any>> {
+    return this.request(`/quiz/${quizId}/bloom/${level}`);
+  }
+
   // Chat endpoints
-  async askQuestion(docId: string, question: string, sessionId?: string): Promise<ApiResponse<ChatResponse>> {
-    return this.request(`/chat/${docId}`, {
+  async askQuestion(question: string, sessionId?: string): Promise<ApiResponse<ChatResponse>> {
+    return this.request('/chat/ask', {
       method: 'POST',
       body: JSON.stringify({
         question,
@@ -234,14 +324,75 @@ class ApiService {
     });
   }
 
-  async getChatHistory(docId: string): Promise<ApiResponse<ChatMessage[]>> {
-    return this.request(`/chat/${docId}/history`);
+  async searchDocuments(query: string, docIds?: string[]): Promise<ApiResponse<any>> {
+    return this.request('/chat/search', {
+      method: 'POST',
+      body: JSON.stringify({ query, doc_ids: docIds }),
+    });
+  }
+
+  async askQuestionStream(question: string, sessionId?: string): Promise<ApiResponse<any>> {
+    return this.request('/chat/ask-stream', {
+      method: 'POST',
+      body: JSON.stringify({ question, session_id: sessionId }),
+    });
+  }
+
+  async getSimilarQuestions(question: string): Promise<ApiResponse<any>> {
+    return this.request(`/chat/similar-questions?question=${question}`);
+  }
+
+  async getRagStatistics(): Promise<ApiResponse<any>> {
+    return this.request('/chat/stats');
+  }
+
+  async healthCheck(): Promise<ApiResponse<any>> {
+    return this.request('/chat/health');
   }
 
   // Analytics endpoints
-  async getUserAnalytics(days?: number): Promise<ApiResponse<UserAnalytics>> {
-    const params = days ? `?days=${days}` : '';
-    return this.request(`/analytics/user${params}`);
+  async getUserAnalytics(): Promise<ApiResponse<UserAnalytics>> {
+    return this.request('/analytics/user');
+  }
+
+  async getDocumentAnalytics(docId: string): Promise<ApiResponse<any>> {
+    return this.request(`/analytics/document/${docId}`);
+  }
+
+  async getLearningProgress(): Promise<ApiResponse<any>> {
+    return this.request('/analytics/progress');
+  }
+
+  async getStudyRecommendations(): Promise<ApiResponse<any>> {
+    return this.request('/analytics/recommendations');
+  }
+
+  async getSystemAnalytics(): Promise<ApiResponse<any>> {
+    return this.request('/analytics/system');
+  }
+
+  async trackLearningSession(session: any): Promise<ApiResponse<any>> {
+    return this.request('/analytics/track-session', {
+      method: 'POST',
+      body: JSON.stringify(session),
+    });
+  }
+
+  async getRecentActivity(limit?: number): Promise<ApiResponse<any>> {
+    const params = limit ? `?limit=${limit}` : '';
+    return this.request(`/analytics/recent-activity${params}`);
+  }
+  // Default endpoints
+  async getRoot(): Promise<ApiResponse<any>> {
+    return this.request('/');
+  }
+
+  async getHealth(): Promise<ApiResponse<any>> {
+    return this.request('/health');
+  }
+
+  async getApiInfo(): Promise<ApiResponse<any>> {
+    return this.request('/api/info');
   }
 }
 

@@ -25,6 +25,7 @@ scipy>=1.10.0  # For advanced mathematical operations
 python-docx
 pypdf2
 llama-parse
+langdetect
 
 # Language Processing
 pythainlp

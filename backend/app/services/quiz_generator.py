@@ -404,7 +404,7 @@ class AdvancedQuizGenerator:
                     question.setdefault("bloom_level", bloom_level.value)
                     question.setdefault("difficulty", difficulty.value)
                     question.setdefault("question_type", question_type.value)
-                    question.setdefault("generated_at", datetime.utcnow().isoformat())
+                    question.setdefault("generated_at", datetime.datetime.utcnow().isoformat())
                 
                 return questions
                 
@@ -503,7 +503,7 @@ class AdvancedQuizGenerator:
             "question_type": question_type.value,
             "quality_score": 0.5,
             "is_fallback": True,
-            "generated_at": datetime.utcnow().isoformat()
+            "generated_at": datetime.datetime.utcnow().isoformat()
         }
         
         return [fallback_question]

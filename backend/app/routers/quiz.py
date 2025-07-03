@@ -56,7 +56,7 @@ async def generate_quiz(
                 ]
             },
             message=f"สร้างแบบทดสอบ {len(quiz.questions)} ข้อสำเร็จ",
-            timestamp=datetime.utcnow().isoformat() + "Z"
+            timestamp=datetime.datetime.utcnow().isoformat() + "Z"
         )
         
     except Exception as e:
@@ -102,7 +102,7 @@ async def get_quiz(
                 ]
             },
             message="ดึงข้อมูลแบบทดสอบสำเร็จ",
-            timestamp=datetime.utcnow().isoformat() + "Z"
+            timestamp=datetime.datetime.utcnow().isoformat() + "Z"
         )
         
     except HTTPException:
@@ -141,7 +141,7 @@ async def submit_quiz(
                 "recommendations": results.recommendations
             },
             message=f"ส่งแบบทดสอบสำเร็จ คะแนน {results.percentage:.1f}%",
-            timestamp=datetime.utcnow().isoformat() + "Z"
+            timestamp=datetime.datetime.utcnow().isoformat() + "Z"
         )
         
     except Exception as e:
@@ -167,7 +167,7 @@ async def get_quiz_results(
             success=True,
             data=attempt.dict(), # Directly return the model dict
             message="ดึงผลการทำแบบทดสอบสำเร็จ",
-            timestamp=datetime.utcnow().isoformat() + "Z"
+            timestamp=datetime.datetime.utcnow().isoformat() + "Z"
         )
         
     except HTTPException:
@@ -198,7 +198,7 @@ async def get_quiz_history(
                 "attempts": history
             },
             message="ดึงประวัติการทำแบบทดสอบสำเร็จ",
-            timestamp=datetime.utcnow().isoformat() + "Z"
+            timestamp=datetime.datetime.utcnow().isoformat() + "Z"
         )
         
     except Exception as e:
@@ -223,7 +223,7 @@ async def get_user_quiz_history(
                 "attempts": history
             },
             message="ดึงประวัติการทำแบบทดสอบทั้งหมดสำเร็จ",
-            timestamp=datetime.utcnow().isoformat() + "Z"
+            timestamp=datetime.datetime.utcnow().isoformat() + "Z"
         )
         
     except Exception as e:
@@ -248,7 +248,7 @@ async def get_quiz_analytics(
                 "analytics": analytics
             },
             message="ดึงข้อมูลวิเคราะห์แบบทดสอบสำเร็จ",
-            timestamp=datetime.utcnow().isoformat() + "Z"
+            timestamp=datetime.datetime.utcnow().isoformat() + "Z"
         )
         
     except Exception as e:
@@ -273,7 +273,7 @@ async def delete_quiz(
             success=True,
             data={"quiz_id": quiz_id},
             message="ลบแบบทดสอบสำเร็จ",
-            timestamp=datetime.utcnow().isoformat() + "Z"
+            timestamp=datetime.datetime.utcnow().isoformat() + "Z"
         )
         
     except HTTPException:
@@ -318,7 +318,7 @@ async def get_questions_by_difficulty(
                 "questions": filtered_questions
             },
             message=f"ดึงคำถามระดับ {level} สำเร็จ",
-            timestamp=datetime.utcnow().isoformat() + "Z"
+            timestamp=datetime.datetime.utcnow().isoformat() + "Z"
         )
         
     except HTTPException:
@@ -363,7 +363,7 @@ async def get_questions_by_bloom_level(
                 "questions": filtered_questions
             },
             message=f"ดึงคำถามระดับ {level} สำเร็จ",
-            timestamp=datetime.utcnow().isoformat() + "Z"
+            timestamp=datetime.datetime.utcnow().isoformat() + "Z"
         )
         
     except HTTPException:

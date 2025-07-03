@@ -20,7 +20,7 @@ import asyncio
 import math
 import statistics
 from typing import List, Dict, Optional, Any, Tuple
-from datetime import datetime, timedelta
+from datetime import datetime, timedelta, timezone
 from collections import defaultdict, Counter
 from dataclasses import dataclass, asdict
 from enum import Enum
@@ -149,7 +149,7 @@ class AdvancedAnalyticsService:
             Comprehensive analytics including performance, patterns, and predictions
         """
         try:
-            end_date = datetime.utcnow()
+            end_date = datetime.now(timezone.utc)
             start_date = end_date - timedelta(days=days)
             
             # Gather all learning data concurrently
@@ -217,7 +217,7 @@ class AdvancedAnalyticsService:
                 "bloom_mastery": bloom_mastery,
                 "predictions": predictions,
                 "recommendations": [asdict(rec) for rec in recommendations],
-                "generated_at": datetime.utcnow().isoformat()
+                "generated_at": datetime.now(timezone.utc).isoformat()
             }
             
         except Exception as e:
@@ -1138,7 +1138,7 @@ class AdvancedAnalyticsService:
             for topic, days_to_mastery in performance_analysis.mastery_timeline.items():
                 mastery_predictions[topic] = {
                     "current_level": learning_metrics.bloom_mastery.get(topic, 0.0),
-                    "predicted_mastery_date": (datetime.utcnow() + timedelta(days=days_to_mastery)).isoformat(),
+                    "predicted_mastery_date": (datetime.now(timezone.utc) + timedelta(days=days_to_mastery)).isoformat(),
                     "confidence": 0.8 if learning_metrics.consistency_score > 0.7 else 0.6
                 }
             
@@ -1250,7 +1250,7 @@ class AdvancedAnalyticsService:
     async def get_user_analytics(self, user_id: str, days: int = 30) -> UserAnalytics:
         """Get comprehensive analytics for a user"""
         try:
-            end_date = datetime.utcnow()
+            end_date = datetime.now(timezone.utc)
             start_date = end_date - timedelta(days=days)
             
             # Get flashcard stats
@@ -1280,7 +1280,7 @@ class AdvancedAnalyticsService:
                 study_patterns=study_patterns,
                 learning_progress=learning_progress,
                 recommendations=recommendations,
-                generated_at=datetime.utcnow()
+                generated_at=datetime.now(timezone.utc)
             )
             
         except Exception as e:
@@ -1697,7 +1697,7 @@ class AdvancedAnalyticsService:
                 study_dates.add(activity_date.date())
             
             # Calculate streak from today backwards
-            current_date = datetime.utcnow().date()
+            current_date = datetime.now(timezone.utc).date()
             streak = 0
             
             while current_date in study_dates:
@@ -1897,7 +1897,7 @@ class AdvancedAnalyticsService:
             total_chat_questions = await chat_collection.count_documents({})
             
             # Recent activity (last 7 days)
-            week_ago = datetime.utcnow() - timedelta(days=7)
+            week_ago = datetime.now(timezone.utc) - timedelta(days=7)
             recent_flashcard_reviews = await flashcard_collection.count_documents({"reviewed_at": {"$gte": week_ago}})
             recent_quiz_attempts = await quiz_collection.count_documents({"completed_at": {"$gte": week_ago}})
             recent_chat_questions = await chat_collection.count_documents({"created_at": {"$gte": week_ago}})
@@ -1922,7 +1922,79 @@ class AdvancedAnalyticsService:
 # Maintain backward compatibility by keeping the original class
 class AnalyticsService(AdvancedAnalyticsService):
     """Backward compatible analytics service"""
-    pass
+    
+    async def get_recent_activities(self, user_id: str, limit: int = 10) -> List[Dict[str, Any]]:
+        """Get recent user activities from various collections"""
+        try:
+            activities = []
+            
+            # Debug logging
+            logger.info(f"Looking for activities for user_id: {user_id}")
+            
+            # Check what documents exist
+            total_docs = await self.document_collection.count_documents({})
+            logger.info(f"Total documents in collection: {total_docs}")
+            
+            # Check what user IDs exist
+            user_ids = await self.document_collection.distinct("userId")
+            logger.info(f"User IDs in documents collection: {user_ids}")
+            
+            # Get recent document uploads
+            async for doc in self.document_collection.find(
+                {"userId": user_id}
+            ).sort("createdAt", -1).limit(limit):
+                activities.append({
+                    "type": "document_upload",
+                    "icon_color": "blue",
+                    "title": f"อัปโหลดเอกสาร \"{doc.get('title', doc.get('filename', 'Unknown'))}\"",
+                    "timestamp": doc.get("createdAt"),
+                    "document_id": str(doc.get("_id"))
+                })
+            
+            # Get recent flashcard sessions (mock for now)
+            # TODO: Implement when flashcard tracking is added
+            
+            # Get recent quiz attempts (mock for now) 
+            # TODO: Implement when quiz tracking is added
+            
+            # Sort activities by timestamp
+            activities.sort(key=lambda x: x.get("timestamp", datetime.min.replace(tzinfo=timezone.utc)), reverse=True)
+            
+            # Add relative time strings
+            now = datetime.now(timezone.utc)
+            for activity in activities[:limit]:
+                timestamp = activity.get("timestamp")
+                if timestamp:
+                    # Handle different timestamp formats
+                    if isinstance(timestamp, str):
+                        timestamp = datetime.fromisoformat(timestamp.replace('Z', '+00:00'))
+                    elif isinstance(timestamp, datetime) and timestamp.tzinfo is None:
+                        # Make naive datetime timezone-aware (assume UTC)
+                        timestamp = timestamp.replace(tzinfo=timezone.utc)
+                    elif isinstance(timestamp, datetime) and timestamp.tzinfo is not None:
+                        # Already timezone-aware
+                        pass
+                    else:
+                        activity["relative_time"] = "เมื่อไหร่ไม่ทราบ"
+                        continue
+                    
+                    diff = now - timestamp
+                    if diff.days > 0:
+                        activity["relative_time"] = f"{diff.days} วันที่แล้ว"
+                    elif diff.seconds > 3600:
+                        hours = diff.seconds // 3600
+                        activity["relative_time"] = f"{hours} ชั่วโมงที่แล้ว"
+                    else:
+                        minutes = diff.seconds // 60
+                        activity["relative_time"] = f"{minutes} นาทีที่แล้ว"
+                else:
+                    activity["relative_time"] = "เมื่อไหร่ไม่ทราบ"
+            
+            return activities[:limit]
+            
+        except Exception as e:
+            logger.error(f"Error getting recent activities: {e}")
+            return []
 
 # Global instances
 # analytics_service = AnalyticsService()

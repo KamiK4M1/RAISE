@@ -1,10 +1,10 @@
 from fastapi import APIRouter, UploadFile, File, Form, HTTPException, Depends, Query
 from typing import List, Optional
 import logging
-from datetime import datetime
+from datetime import datetime, timezone
 
 from app.models.document import (
-    DocumentResponse, 
+    DocumentAPIResponse, 
     DocumentListResponse, 
     DocumentProcessRequest
 )
@@ -19,7 +19,7 @@ router = APIRouter()
 
 # Authentication is now handled by the dependency
 
-@router.post("/upload", response_model=DocumentResponse)
+@router.post("/upload", response_model=DocumentAPIResponse)
 async def upload_document(
     file: UploadFile = File(...),
     user_id: str = Depends(get_current_user_id)
@@ -48,7 +48,7 @@ async def upload_document(
             title=file.filename  # Use filename as title by default
         )
         
-        return DocumentResponse(
+        return DocumentAPIResponse(
             success=True,
             data={
                 "document_id": document_id,
@@ -56,7 +56,7 @@ async def upload_document(
                 "status": "processing"
             },
             message="ไฟล์ถูกอัปโหลดและกำลังประมวลผล",
-            timestamp=datetime.utcnow().isoformat() + "Z"
+            timestamp=datetime.now(timezone.utc).isoformat() + "Z"
         )
         
     except FileUploadError as e:
@@ -83,14 +83,14 @@ async def list_documents(
             success=True,
             data=documents,
             message="ดึงรายการเอกสารสำเร็จ",
-            timestamp=datetime.utcnow().isoformat() + "Z"
+            timestamp=datetime.now(timezone.utc).isoformat() + "Z"
         )
         
     except Exception as e:
         logger.error(f"Error listing documents: {e}")
         raise HTTPException(status_code=500, detail="เกิดข้อผิดพลาดในการดึงรายการเอกสาร")
 
-@router.get("/{doc_id}", response_model=DocumentResponse)
+@router.get("/{doc_id}", response_model=DocumentAPIResponse)
 async def get_document(
     doc_id: str,
     user_id: str = Depends(get_current_user_id)
@@ -104,22 +104,22 @@ async def get_document(
         
         # Return document without content for performance (unless specifically requested)
         document_data = {
-            "document_id": document.document_id,
+            "document_id": document.id,
             "filename": document.filename,
-            "file_type": document.file_type,
-            "file_size": document.file_size,
-            "processing_status": document.processing_status,
-            "processed_at": document.processed_at,
-            "created_at": document.created_at,
-            "chunk_count": len(document.chunks),
-            "error_message": document.error_message
+            "file_type": document.fileType,
+            "file_size": document.fileSize,
+            "processing_status": document.status,
+            "processed_at": document.updatedAt,
+            "created_at": document.createdAt,
+            "chunk_count": len(getattr(document, 'chunks', [])),
+            "error_message": document.errorMessage
         }
         
-        return DocumentResponse(
+        return DocumentAPIResponse(
             success=True,
             data=document_data,
             message="ดึงข้อมูลเอกสารสำเร็จ",
-            timestamp=datetime.utcnow().isoformat() + "Z"
+            timestamp=datetime.now(timezone.utc).isoformat() + "Z"
         )
         
     except HTTPException:
@@ -128,7 +128,7 @@ async def get_document(
         logger.error(f"Error getting document: {e}")
         raise HTTPException(status_code=500, detail="เกิดข้อผิดพลาดในการดึงข้อมูลเอกสาร")
 
-@router.delete("/{doc_id}", response_model=DocumentResponse)
+@router.delete("/{doc_id}", response_model=DocumentAPIResponse)
 async def delete_document(
     doc_id: str,
     user_id: str = Depends(get_current_user_id)
@@ -140,11 +140,11 @@ async def delete_document(
         if not success:
             raise HTTPException(status_code=404, detail="ไม่พบเอกสารที่จะลบ")
         
-        return DocumentResponse(
+        return DocumentAPIResponse(
             success=True,
             data={"document_id": doc_id},
             message="ลบเอกสารสำเร็จ",
-            timestamp=datetime.utcnow().isoformat() + "Z"
+            timestamp=datetime.now(timezone.utc).isoformat() + "Z"
         )
         
     except HTTPException:
@@ -153,7 +153,7 @@ async def delete_document(
         logger.error(f"Error deleting document: {e}")
         raise HTTPException(status_code=500, detail="เกิดข้อผิดพลาดในการลบเอกสาร")
 
-@router.post("/{doc_id}/process", response_model=DocumentResponse)
+@router.post("/{doc_id}/process", response_model=DocumentAPIResponse)
 async def reprocess_document(
     doc_id: str,
     request: DocumentProcessRequest = DocumentProcessRequest(),
@@ -175,7 +175,7 @@ async def reprocess_document(
             request.chunk_overlap
         )
         
-        return DocumentResponse(
+        return DocumentAPIResponse(
             success=True,
             data={
                 "document_id": doc_id,
@@ -184,7 +184,7 @@ async def reprocess_document(
                 "chunk_overlap": request.chunk_overlap
             },
             message="ประมวลผลเอกสารใหม่สำเร็จ",
-            timestamp=datetime.utcnow().isoformat() + "Z"
+            timestamp=datetime.now(timezone.utc).isoformat() + "Z"
         )
         
     except HTTPException:
@@ -193,7 +193,7 @@ async def reprocess_document(
         logger.error(f"Error reprocessing document: {e}")
         raise HTTPException(status_code=500, detail="เกิดข้อผิดพลาดในการประมวลผลเอกสารใหม่")
 
-@router.get("/{doc_id}/stats", response_model=DocumentResponse)
+@router.get("/{doc_id}/stats", response_model=DocumentAPIResponse)
 async def get_document_stats(
     doc_id: str,
     user_id: str = Depends(get_current_user_id)
@@ -205,11 +205,11 @@ async def get_document_stats(
         if not stats:
             raise HTTPException(status_code=404, detail="ไม่พบเอกสารที่ร้องขอ")
         
-        return DocumentResponse(
+        return DocumentAPIResponse(
             success=True,
             data=stats,
             message="ดึงสถิติเอกสารสำเร็จ",
-            timestamp=datetime.utcnow().isoformat() + "Z"
+            timestamp=datetime.now(timezone.utc).isoformat() + "Z"
         )
         
     except HTTPException:
@@ -218,7 +218,7 @@ async def get_document_stats(
         logger.error(f"Error getting document stats: {e}")
         raise HTTPException(status_code=500, detail="เกิดข้อผิดพลาดในการดึงสถิติเอกสาร")
 
-@router.post("/{doc_id}/search", response_model=DocumentResponse)
+@router.post("/{doc_id}/search", response_model=DocumentAPIResponse)
 async def search_document(
     doc_id: str,
     query: str = Form(...),
@@ -231,7 +231,7 @@ async def search_document(
             doc_id, query, user_id, top_k
         )
         
-        return DocumentResponse(
+        return DocumentAPIResponse(
             success=True,
             data={
                 "query": query,
@@ -239,7 +239,7 @@ async def search_document(
                 "total_results": len(results)
             },
             message="ค้นหาในเอกสารสำเร็จ",
-            timestamp=datetime.utcnow().isoformat() + "Z"
+            timestamp=datetime.now(timezone.utc).isoformat() + "Z"
         )
         
     except Exception as e:

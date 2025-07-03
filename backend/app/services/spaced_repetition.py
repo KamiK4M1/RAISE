@@ -177,7 +177,7 @@ class SpacedRepetitionService:
             # Calculate retention strength based on timing
             retention_strength = self._calculate_retention_strength(
                 card["next_review"], 
-                datetime.utcnow()
+                datetime.datetime.utcnow()
             )
             
             # Get performance context
@@ -215,7 +215,7 @@ class SpacedRepetitionService:
                 "review_count": card["review_count"] + 1,
                 "correct_count": correct_count,
                 "incorrect_count": incorrect_count,
-                "updated_at": datetime.utcnow(),
+                "updated_at": datetime.datetime.utcnow(),
                 "last_quality": quality,
                 "last_review_time": review.time_taken or 0,
                 "accuracy_rate": accuracy,
@@ -317,7 +317,7 @@ class SpacedRepetitionService:
         """Get recent performance metrics for context-aware scheduling"""
         try:
             # Get recent reviews for this card
-            cutoff_date = datetime.utcnow() - timedelta(days=days)
+            cutoff_date = datetime.datetime.utcnow() - timedelta(days=days)
             
             # This would query a review history collection in a full implementation
             # For now, we'll use the card's current stats
@@ -415,7 +415,7 @@ class SpacedRepetitionService:
         new_interval = self._apply_interval_fuzz(new_interval)
         
         # Calculate next review date
-        next_review = datetime.utcnow() + timedelta(days=new_interval)
+        next_review = datetime.datetime.utcnow() + timedelta(days=new_interval)
         
         return new_ease_factor, new_interval, next_review
 
@@ -473,7 +473,7 @@ class SpacedRepetitionService:
         """
         try:
             # Build query for due cards
-            now = datetime.utcnow()
+            now = datetime.datetime.utcnow()
             query = {
                 "user_id": ObjectId(user_id),
                 "next_review": {"$lte": now}
@@ -578,7 +578,7 @@ class SpacedRepetitionService:
             
             # Calculate basic statistics
             total_cards = len(cards)
-            now = datetime.utcnow()
+            now = datetime.datetime.utcnow()
             due_today = len([c for c in cards if c["next_review"] <= now])
             
             # Performance statistics
@@ -907,7 +907,7 @@ class SpacedRepetitionService:
         """Calculate retention rate over the specified period"""
         try:
             # Get cards that were due in the specified period
-            cutoff_date = datetime.utcnow() - timedelta(days=days_back)
+            cutoff_date = datetime.datetime.utcnow() - timedelta(days=days_back)
             
             cards = []
             async for card in self.flashcards_collection.find({
@@ -933,7 +933,7 @@ class SpacedRepetitionService:
         try:
             # This would ideally check daily study activity
             # For now, estimate based on card update frequency
-            cutoff_date = datetime.utcnow() - timedelta(days=days_back)
+            cutoff_date = datetime.datetime.utcnow() - timedelta(days=days_back)
             
             # Count days with activity (cards updated)
             pipeline = [
@@ -968,7 +968,7 @@ class SpacedRepetitionService:
         """Estimate daily study time in seconds"""
         try:
             # Get cards reviewed today
-            today_start = datetime.utcnow().replace(hour=0, minute=0, second=0, microsecond=0)
+            today_start = datetime.datetime.utcnow().replace(hour=0, minute=0, second=0, microsecond=0)
             
             cards = []
             async for card in self.flashcards_collection.find({
@@ -1018,7 +1018,7 @@ class SpacedRepetitionService:
             
             # Predict daily workload
             workload = {}
-            base_date = datetime.utcnow().replace(hour=0, minute=0, second=0, microsecond=0)
+            base_date = datetime.datetime.utcnow().replace(hour=0, minute=0, second=0, microsecond=0)
             
             for i in range(days_ahead):
                 target_date = base_date + timedelta(days=i)
@@ -1054,7 +1054,7 @@ class SpacedRepetitionService:
             # Such as learning streaks, daily goals, achievements, etc.
             
             # Update user's daily review count
-            today = datetime.utcnow().date()
+            today = datetime.datetime.utcnow().date()
             
             # This is a placeholder for user analytics updates
             # In a full implementation, you'd have a user analytics collection

@@ -26,97 +26,57 @@ export default function QuizPage() {
   // Get document ID from URL or use default for demo
   const documentId = "demo-document" // This should come from router params in real app
 
-  // Mock quiz data covering Bloom's Taxonomy levels
-  const quiz = {
-    title: "แบบทดสอบคณิตศาสตร์ - สมการเชิงเส้น",
-    subject: "คณิตศาสตร์",
-    totalTime: 300,
-    questions: [
-      {
-        id: 1,
-        question: "สมการเชิงเส้นคือสมการที่มีตัวแปรยกกำลังเท่าใด?",
-        type: "multiple-choice",
-        bloomLevel: "จำ (Remember)",
-        options: ["กำลังศูนย์", "กำลังหนึ่ง", "กำลังสอง", "กำลังสาม"],
-        correctAnswer: "กำลังหนึ่ง",
-        explanation: "สมการเชิงเส้นคือสมการที่มีตัวแปรยกกำลังหนึ่ง เช่น ax + b = 0",
-      },
-      {
-        id: 2,
-        question: "จากสมการ 2x + 6 = 14 ค่าของ x เท่ากับเท่าใด?",
-        type: "multiple-choice",
-        bloomLevel: "เข้าใจ (Understand)",
-        options: ["x = 2", "x = 4", "x = 6", "x = 8"],
-        correctAnswer: "x = 4",
-        explanation: "2x + 6 = 14 → 2x = 14 - 6 → 2x = 8 → x = 4",
-      },
-      {
-        id: 3,
-        question: "ถ้า 3x - 5 = 2x + 7 แล้ว x มีค่าเท่าใด?",
-        type: "multiple-choice",
-        bloomLevel: "ประยุกต์ (Apply)",
-        options: ["x = 10", "x = 12", "x = 14", "x = 16"],
-        correctAnswer: "x = 12",
-        explanation: "3x - 5 = 2x + 7 → 3x - 2x = 7 + 5 → x = 12",
-      },
-      {
-        id: 4,
-        question: "เปรียบเทียบวิธีการแก้สมการ 2x + 3 = 11 และ 4x + 6 = 22 แล้วสรุปความสัมพันธ์",
-        type: "multiple-choice",
-        bloomLevel: "วิเคราะห์ (Analyze)",
-        options: [
-          "สมการที่สองเป็น 2 เท่าของสมการแรก และมีคำตอบเดียวกัน",
-          "สมการทั้งสองไม่เกี่ยวข้องกัน",
-          "สมการที่สองยากกว่าสมการแรก",
-          "สมการแรกมีคำตอบมากกว่าสมการที่สอง",
-        ],
-        correctAnswer: "สมการที่สองเป็น 2 เท่าของสมการแรก และมีคำตอบเดียวกัน",
-        explanation: "สมการ 4x + 6 = 22 เมื่อหารด้วย 2 จะได้ 2x + 3 = 11 ซึ่งเป็นสมการเดียวกัน",
-      },
-      {
-        id: 5,
-        question: "ประเมินความถูกต้องของข้อความ: 'สมการเชิงเส้นทุกสมการจะมีคำตอบเพียงหนึ่งเดียวเสมอ'",
-        type: "multiple-choice",
-        bloomLevel: "ประเมิน (Evaluate)",
-        options: [
-          "ถูกต้อง เพราะสมการเชิงเส้นมีคำตอบเดียว",
-          "ผิด เพราะบางสมการอาจไม่มีคำตอบหรือมีคำตอบไม่จำกัด",
-          "ถูกต้องเฉพาะสมการที่มี x เท่านั้น",
-          "ผิด เพราะสมการเชิงเส้นมีคำตอบหลายตัวเสมอ",
-        ],
-        correctAnswer: "ผิด เพราะบางสมการอาจไม่มีคำตอบหรือมีคำตอบไม่จำกัด",
-        explanation: "สมการเชิงเส้นอาจไม่มีคำตอบ (เช่น 2x + 1 = 2x + 3) หรือมีคำตอบไม่จำกัด (เช่น 2x + 1 = 2x + 1)",
-      },
-    ],
-  }
+  useEffect(() => {
+    const loadQuiz = async () => {
+      try {
+        setLoading(true);
+        const response = await apiService.generateQuiz(documentId, { question_count: 5, bloom_distribution: {}, difficulty: 'medium' });
+        if (response.success && response.data) {
+          setQuiz(response.data);
+          setTimeLeft(response.data.time_limit || 300);
+          setStartTime(Date.now());
+        } else {
+          throw new Error(response.message || 'Failed to load quiz');
+        }
+      } catch (error) {
+        console.error('Error loading quiz:', error);
+        const errorMessage = error instanceof Error ? error.message : 'ไม่สามารถโหลดแบบทดสอบได้';
+        setError(errorMessage);
+      } finally {
+        setLoading(false);
+      }
+    };
+
+    loadQuiz();
+  }, [documentId]);
 
   const handleAnswerSelect = (value: string) => {
     setSelectedAnswer(value)
   }
 
-  const handleNextQuestion = () => {
-    const newAnswers = [...answers]
-    newAnswers[currentQuestion] = selectedAnswer
-    setAnswers(newAnswers)
+  const handleNextQuestion = async () => {
+    const newAnswers = [...answers];
+    newAnswers[currentQuestion] = selectedAnswer;
+    setAnswers(newAnswers);
 
-    if (currentQuestion < quiz.questions.length - 1) {
-      setCurrentQuestion(currentQuestion + 1)
-      setSelectedAnswer("")
-    } else {
-      setShowResults(true)
+    if (quiz && currentQuestion < quiz.questions.length - 1) {
+      setCurrentQuestion(currentQuestion + 1);
+      setSelectedAnswer("");
+    } else if (quiz) {
+      const timeTaken = (Date.now() - startTime) / 1000;
+      const response = await apiService.submitQuiz(quiz.quiz_id, newAnswers, timeTaken);
+      if(response.success && response.data) {
+        setQuizResults(response.data);
+      }
+      setShowResults(true);
     }
-
-    // TODO: Send answer to Python backend
-    console.log("Answer submitted:", {
-      questionId: quiz.questions[currentQuestion].id,
-      answer: selectedAnswer,
-    })
-  }
+  };
 
   const calculateScore = () => {
+    if (!quiz) return { correct: 0, total: 0, percentage: 0 }
     let correct = 0
     answers.forEach((answer, index) => {
-      if (answer === quiz.questions[index].correctAnswer) {
+      if (answer === quiz.questions[index].correct_answer) {
         correct++
       }
     })
@@ -127,6 +87,45 @@ export default function QuizPage() {
     const mins = Math.floor(seconds / 60)
     const secs = seconds % 60
     return `${mins}:${secs.toString().padStart(2, "0")}`
+  }
+
+  if (loading) {
+    return (
+      <div className="min-h-screen bg-gray-50 flex items-center justify-center">
+        <div className="text-center">
+          <Brain className="h-12 w-12 text-blue-600 mx-auto mb-4 animate-spin" />
+          <p className="text-gray-600">กำลังโหลดแบบทดสอบ...</p>
+        </div>
+      </div>
+    )
+  }
+
+  if (error) {
+    return (
+      <div className="min-h-screen bg-gray-50 flex items-center justify-center">
+        <div className="text-center">
+          <XCircle className="h-12 w-12 text-red-600 mx-auto mb-4" />
+          <p className="text-red-600 mb-4">{error}</p>
+          <Link href="/dashboard">
+            <Button>กลับหน้าหลัก</Button>
+          </Link>
+        </div>
+      </div>
+    )
+  }
+
+  if (!quiz) {
+    return (
+      <div className="min-h-screen bg-gray-50 flex items-center justify-center">
+        <div className="text-center">
+          <XCircle className="h-12 w-12 text-gray-600 mx-auto mb-4" />
+          <p className="text-gray-600 mb-4">ไม่พบแบบทดสอบ</p>
+          <Link href="/dashboard">
+            <Button>กลับหน้าหลัก</Button>
+          </Link>
+        </div>
+      </div>
+    )
   }
 
   if (showResults) {
@@ -144,7 +143,7 @@ export default function QuizPage() {
               </Link>
               <div className="flex items-center space-x-2">
                 <Brain className="h-8 w-8 text-blue-600" />
-                <span className="text-2xl font-bold text-gray-900">AI Learning</span>
+                <span className="text-2xl font-bold text-gray-900">RAISE</span>
               </div>
             </div>
           </div>
@@ -156,7 +155,7 @@ export default function QuizPage() {
               <CardHeader>
                 <Award className="h-16 w-16 text-yellow-500 mx-auto mb-4" />
                 <CardTitle className="text-3xl">ผลการทำแบบทดสอบ</CardTitle>
-                <CardDescription className="text-lg">{quiz.title}</CardDescription>
+                <CardDescription className="text-lg">{quiz?.title}</CardDescription>
               </CardHeader>
               <CardContent>
                 <div className="grid md:grid-cols-3 gap-6 mb-8">
@@ -175,11 +174,11 @@ export default function QuizPage() {
                 </div>
 
                 <div className="space-y-4">
-                  {quiz.questions.map((question, index) => (
-                    <Card key={question.id} className="text-left">
+                  {quiz?.questions.map((question, index) => (
+                    <Card key={question.question_id} className="text-left">
                       <CardContent className="p-4">
                         <div className="flex items-start space-x-3">
-                          {answers[index] === question.correctAnswer ? (
+                          {answers[index] === question.correct_answer ? (
                             <CheckCircle className="h-5 w-5 text-green-600 mt-1 flex-shrink-0" />
                           ) : (
                             <XCircle className="h-5 w-5 text-red-600 mt-1 flex-shrink-0" />
@@ -191,10 +190,10 @@ export default function QuizPage() {
                                 <span className="font-medium">คำตอบของคุณ:</span> {answers[index] || "ไม่ได้ตอบ"}
                               </p>
                               <p>
-                                <span className="font-medium">คำตอบที่ถูก:</span> {question.correctAnswer}
+                                <span className="font-medium">คำตอบที่ถูก:</span> {question.correct_answer}
                               </p>
                               <p className="text-gray-600">{question.explanation}</p>
-                              <p className="text-xs text-blue-600">ระดับ Bloom's Taxonomy: {question.bloomLevel}</p>
+                              <p className="text-xs text-blue-600">ระดับ Bloom's Taxonomy: {question.bloom_level}</p>
                             </div>
                           </div>
                         </div>
@@ -221,7 +220,7 @@ export default function QuizPage() {
     )
   }
 
-  const progress = ((currentQuestion + 1) / quiz.questions.length) * 100
+  const progress = quiz ? ((currentQuestion + 1) / quiz.questions.length) * 100 : 0
 
   return (
     <div className="min-h-screen bg-gray-50">
@@ -253,7 +252,7 @@ export default function QuizPage() {
         <div className="max-w-4xl mx-auto">
           {/* Header */}
           <div className="mb-8">
-            <h1 className="text-3xl font-bold text-gray-900 mb-2">{quiz.title}</h1>
+            <h1 className="text-3xl font-bold text-gray-900 mb-2">{quiz?.title}</h1>
             <p className="text-gray-600">แบบทดสอบที่ครอบคลุมทุกระดับตาม Bloom's Taxonomy</p>
           </div>
 
@@ -262,7 +261,7 @@ export default function QuizPage() {
             <div className="flex justify-between items-center mb-2">
               <span className="text-sm text-gray-600">ความคืบหน้า</span>
               <span className="text-sm font-medium">
-                {currentQuestion + 1} / {quiz.questions.length}
+                {currentQuestion + 1} / {quiz?.questions.length || 0}
               </span>
             </div>
             <Progress value={progress} className="h-2" />
@@ -274,16 +273,16 @@ export default function QuizPage() {
               <div className="flex justify-between items-start">
                 <div>
                   <CardTitle className="text-xl mb-2">คำถามที่ {currentQuestion + 1}</CardTitle>
-                  <CardDescription>ระดับ: {quiz.questions[currentQuestion].bloomLevel}</CardDescription>
+                  <CardDescription>ระดับ: {quiz?.questions[currentQuestion]?.bloom_level}</CardDescription>
                 </div>
               </div>
             </CardHeader>
             <CardContent>
-              <h2 className="text-lg font-medium mb-6 leading-relaxed">{quiz.questions[currentQuestion].question}</h2>
+              <h2 className="text-lg font-medium mb-6 leading-relaxed">{quiz?.questions[currentQuestion]?.question}</h2>
 
               <RadioGroup value={selectedAnswer} onValueChange={handleAnswerSelect}>
                 <div className="space-y-4">
-                  {quiz.questions[currentQuestion].options.map((option, index) => (
+                  {quiz?.questions[currentQuestion]?.options.map((option, index) => (
                     <div
                       key={index}
                       className="flex items-center space-x-3 p-4 border rounded-lg hover:bg-gray-50 transition-colors"
@@ -310,7 +309,7 @@ export default function QuizPage() {
             </Button>
 
             <Button onClick={handleNextQuestion} disabled={!selectedAnswer} className="bg-blue-600 hover:bg-blue-700">
-              {currentQuestion === quiz.questions.length - 1 ? "ส่งคำตอบ" : "คำถามถัดไป"}
+              {quiz && currentQuestion === quiz.questions.length - 1 ? "ส่งคำตอบ" : "คำถามถัดไป"}
             </Button>
           </div>
         </div>

@@ -321,7 +321,7 @@ class MongoDBMigration:
     def _parse_datetime(self, dt_str: Any) -> datetime:
         """Parse datetime string to datetime object"""
         if dt_str is None:
-            return datetime.utcnow()
+            return datetime.datetime.utcnow()
         
         if isinstance(dt_str, datetime):
             return dt_str
@@ -332,9 +332,9 @@ class MongoDBMigration:
                 return datetime.fromisoformat(dt_str.replace('Z', '+00:00'))
             except:
                 # Fallback to current time
-                return datetime.utcnow()
+                return datetime.datetime.utcnow()
         
-        return datetime.utcnow()
+        return datetime.datetime.utcnow()
 
 async def create_sample_data():
     """Create sample data for testing (optional)"""
@@ -351,8 +351,8 @@ async def create_sample_data():
         "image": None,
         "password": "$2b$12$hash",  # Hashed password
         "role": "user",
-        "created_at": datetime.utcnow(),
-        "updated_at": datetime.utcnow()
+        "created_at": datetime.datetime.utcnow(),
+        "updated_at": datetime.datetime.utcnow()
     }
     
     user_result = await users_collection.insert_one(sample_user)
@@ -371,8 +371,8 @@ async def create_sample_data():
         "status": "completed",
         "processing_progress": 100,
         "error_message": None,
-        "created_at": datetime.utcnow(),
-        "updated_at": datetime.utcnow()
+        "created_at": datetime.datetime.utcnow(),
+        "updated_at": datetime.datetime.utcnow()
     }
     
     doc_result = await documents_collection.insert_one(sample_document)

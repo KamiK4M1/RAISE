@@ -65,7 +65,7 @@ class ChatService:
                     "start_pos": chunk["start_pos"],
                     "end_pos": chunk["end_pos"],
                     "embedding": embedding,
-                    "created_at": datetime.utcnow()
+                    "created_at": datetime.datetime.utcnow()
                 }
                 chunk_documents.append(chunk_doc)
 
@@ -221,7 +221,7 @@ class ChatService:
                 "answer": answer,
                 "sources": sources,
                 "confidence": confidence,
-                "created_at": datetime.utcnow()
+                "created_at": datetime.datetime.utcnow()
             }
             
             await self.chat_collection.insert_one(chat_record)
@@ -280,8 +280,8 @@ class ChatService:
             "session_id": session_id,
             "user_id": user_id,
             "document_id": document_id,
-            "created_at": datetime.utcnow(),
-            "last_activity": datetime.utcnow()
+            "created_at": datetime.datetime.utcnow(),
+            "last_activity": datetime.datetime.utcnow()
         }
         
         session_collection = get_collection("chat_sessions")
@@ -295,7 +295,7 @@ class ChatService:
             session_collection = get_collection("chat_sessions")
             await session_collection.update_one(
                 {"session_id": session_id},
-                {"$set": {"last_activity": datetime.utcnow()}}
+                {"$set": {"last_activity": datetime.datetime.utcnow()}}
             )
         except Exception as e:
             logger.error(f"Error updating session activity: {e}")

@@ -8,6 +8,7 @@ import logging
 from PyPDF2 import PdfReader
 from docx import Document
 import asyncio
+from llama_parse import LlamaParse
 
 from app.config import settings
 from app.core.exceptions import FileUploadError
@@ -23,6 +24,23 @@ class FileHandler:
         
         # Create upload directory if it doesn't exist
         self.upload_dir.mkdir(parents=True, exist_ok=True)
+        
+        # Initialize LlamaParse
+        self.llama_parser = None
+        if settings.llamaparse_api_key:
+            try:
+                self.llama_parser = LlamaParse(
+                    api_key=settings.llamaparse_api_key,
+                    result_type="markdown",  # Can be "markdown" or "text"
+                    num_workers=4,  # Number of parallel workers
+                    verbose=True,
+                )
+                logger.info("LlamaParse initialized successfully")
+            except Exception as e:
+                logger.warning(f"Failed to initialize LlamaParse: {e}. Falling back to PyPDF2.")
+                self.llama_parser = None
+        else:
+            logger.warning("LLAMAPARSE_API_KEY not found. Using PyPDF2 for PDF parsing.")
 
     def validate_file(self, filename: str, file_size: int) -> None:
         """Validate uploaded file"""
@@ -59,8 +77,39 @@ class FileHandler:
             raise FileUploadError(f"เกิดข้อผิดพลาดในการบันทึกไฟล์: {str(e)}")
 
     async def read_pdf(self, file_path: str) -> str:
-        """Extract text from PDF file"""
+        """Extract text from PDF file using LlamaParse or PyPDF2 as fallback"""
         try:
+            # Try LlamaParse first if available
+            if self.llama_parser:
+                try:
+                    logger.info(f"Using LlamaParse to process PDF: {file_path}")
+                    
+                    # LlamaParse requires the file path directly
+                    documents = await asyncio.to_thread(
+                        self.llama_parser.load_data, file_path
+                    )
+                    
+                    if documents and len(documents) > 0:
+                        # Combine all document pages
+                        text = ""
+                        for doc in documents:
+                            if hasattr(doc, 'text'):
+                                text += doc.text + "\n"
+                            elif hasattr(doc, 'content'):
+                                text += doc.content + "\n"
+                        
+                        if text.strip():
+                            logger.info("Successfully extracted text using LlamaParse")
+                            return thai_processor.clean_thai_text(text)
+                    
+                    logger.warning("LlamaParse returned empty content, falling back to PyPDF2")
+                    
+                except Exception as e:
+                    logger.warning(f"LlamaParse failed: {e}. Falling back to PyPDF2")
+            
+            # Fallback to PyPDF2
+            logger.info(f"Using PyPDF2 to process PDF: {file_path}")
+            
             def extract_pdf_text():
                 with open(file_path, 'rb') as file:
                     pdf_reader = PdfReader(file)
@@ -79,8 +128,11 @@ class FileHandler:
             if not text.strip():
                 raise FileUploadError("ไม่สามารถดึงข้อความจากไฟล์ PDF ได้")
             
+            logger.info("Successfully extracted text using PyPDF2")
             return thai_processor.clean_thai_text(text)
             
+        except FileUploadError:
+            raise
         except Exception as e:
             logger.error(f"Error reading PDF: {e}")
             raise FileUploadError(f"เกิดข้อผิดพลาดในการอ่านไฟล์ PDF: {str(e)}")

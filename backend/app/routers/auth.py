@@ -10,6 +10,10 @@ from fastapi.security import HTTPBearer, HTTPAuthorizationCredentials
 from passlib.context import CryptContext
 from app.config import settings
 from app.database.mongodb import get_collection
+from bson import ObjectId
+from app.models.user import UserLogin, Token, UserCreate
+from app.services.auth_service import AuthService
+from app.core.dependencies import get_auth_service, get_current_user as get_current_user_dep
 
 logger = logging.getLogger(__name__)
 
@@ -38,9 +42,9 @@ def create_access_token(data: dict, expires_delta: Optional[timedelta] = None):
     """Create JWT access token"""
     to_encode = data.copy()
     if expires_delta:
-        expire = datetime.utcnow() + expires_delta
+        expire = datetime.datetime.utcnow() + expires_delta
     else:
-        expire = datetime.utcnow() + timedelta(minutes=ACCESS_TOKEN_EXPIRE_MINUTES)
+        expire = datetime.datetime.utcnow() + timedelta(minutes=ACCESS_TOKEN_EXPIRE_MINUTES)
     
     to_encode.update({"exp": expire})
     encoded_jwt = jwt.encode(to_encode, SECRET_KEY, algorithm=ALGORITHM)
@@ -80,17 +84,21 @@ async def get_current_user(credentials: HTTPAuthorizationCredentials = Depends(s
         raise credentials_exception
     
     users_collection = get_collection("users")
-    user = await users_collection.find_one({"_id": user_id})
+    user = await users_collection.find_one({"_id": ObjectId(user_id)})
     
     if user is None:
         raise credentials_exception
-        
+    
+    # Convert ObjectId to string for compatibility
+    user["id"] = str(user["_id"])
+    del user["_id"]
+    
     return user
 
 async def get_current_user_id(credentials: HTTPAuthorizationCredentials = Depends(security)) -> str:
     """Dependency to get current user ID only"""
     user = await get_current_user(credentials)
-    return str(user['_id'])
+    return user['id']
 
 async def get_current_user_optional(credentials: HTTPAuthorizationCredentials = Depends(security)) -> Optional[dict]:
     """Optional authentication - returns None if not authenticated"""
@@ -99,15 +107,57 @@ async def get_current_user_optional(credentials: HTTPAuthorizationCredentials = 
     except HTTPException:
         return None
 
-async def authenticate_user(email: str, password: str):
-    """Authenticate user with email and password"""
-    users_collection = get_collection("users")
-    user = await users_collection.find_one({"email": email})
-    
-    if not user:
-        return False
-    if not user.get('password'):
-        return False
-    if not verify_password(password, user['password']):
-        return False
-    return user
+@router.post("/login", response_model=Token)
+async def login_for_access_token(user_login: UserLogin, auth_service: AuthService = Depends(get_auth_service)):
+    """Authenticate user and return JWT token"""
+    try:
+        token = await auth_service.authenticate_user(user_login)
+        return token
+    except HTTPException:
+        raise
+    except Exception as e:
+        logger.error(f"Error during login: {e}")
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail="Internal server error during authentication"
+        )
+
+@router.post("/register", response_model=Token)
+async def register_user(user_create: UserCreate, auth_service: AuthService = Depends(get_auth_service)):
+    """Register a new user and return JWT token"""
+    try:
+        token = await auth_service.register_user(user_create)
+        return token
+    except HTTPException:
+        raise
+    except Exception as e:
+        logger.error(f"Error during registration: {e}")
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail="Internal server error during registration"
+        )
+
+@router.get("/me")
+async def get_current_user_info(current_user: dict = Depends(get_current_user_dep)):
+    """Get current authenticated user information"""
+    try:
+        # Remove sensitive fields like password hash
+        user_info = {
+            "id": current_user.get("id"),
+            "email": current_user.get("email"),
+            "name": current_user.get("name"),
+            "created_at": current_user.get("created_at"),
+            "updated_at": current_user.get("updated_at")
+        }
+        
+        return {
+            "success": True,
+            "data": user_info,
+            "message": "User information retrieved successfully"
+        }
+    except Exception as e:
+        logger.error(f"Error getting user info: {e}")
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail="Error retrieving user information"
+        )

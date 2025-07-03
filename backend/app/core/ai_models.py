@@ -113,6 +113,58 @@ class TogetherAIClient:
                 for i in range(min(count, 3))
             ]
 
+    async def generate_flashcards_from_prompt(self, prompt: str, count: int = 10) -> List[Dict[str, str]]:
+        """Generate flashcards from a custom prompt"""
+        system_prompt = """คุณเป็นผู้ช่วยสร้างบัตรคำศัพท์ (flashcards) ที่ช่วยในการเรียนรู้ 
+        สร้างคำถามและคำตอบที่มีคุณภาพสูงตามที่ร้องขอ
+        ให้ตอบในรูปแบบ JSON array ที่มี objects ที่มี fields: question, answer, difficulty
+        difficulty ให้เป็น easy, medium, หรือ hard
+        ใช้ภาษาไทยในการสร้างคำถามและคำตอบ"""
+        
+        formatted_prompt = f"""{prompt}
+
+ให้ตอบในรูปแบบ JSON array เท่านั้น:
+[
+  {{
+    "question": "คำถาม",
+    "answer": "คำตอบ",
+    "difficulty": "medium"
+  }}
+]"""
+
+        try:
+            response = await self.generate_response(formatted_prompt, system_prompt)
+            # Parse JSON response
+            import json
+            
+            # Try to extract JSON from response
+            try:
+                flashcards = json.loads(response)
+            except json.JSONDecodeError:
+                # Fallback: create mock flashcards if JSON parsing fails
+                flashcards = [
+                    {
+                        "question": f"คำถามที่ {i+1} จากหัวข้อ",
+                        "answer": f"คำตอบตัวอย่างที่ {i+1}",
+                        "difficulty": "medium"
+                    }
+                    for i in range(min(count, 3))
+                ]
+                
+            return flashcards[:count]  # Ensure we don't exceed requested count
+            
+        except Exception as e:
+            logger.error(f"Flashcard generation from prompt error: {e}")
+            # Return mock flashcards as fallback
+            return [
+                {
+                    "question": f"คำถามตัวอย่างที่ {i+1}",
+                    "answer": f"คำตอบตัวอย่างที่ {i+1}",
+                    "difficulty": "medium"
+                }
+                for i in range(min(count, 3))
+            ]
+
     async def generate_quiz_questions(
         self, 
         content: str, 

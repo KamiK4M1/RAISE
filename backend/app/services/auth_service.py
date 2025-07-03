@@ -9,7 +9,7 @@ This service handles:
 """
 
 import logging
-from datetime import datetime, timedelta
+from datetime import datetime, timedelta, timezone
 from typing import Optional, Dict, Any
 from fastapi import HTTPException, status
 
@@ -58,8 +58,8 @@ class AuthService:
                 "role": user_data.role,
                 "email_verified": None,
                 "image": None,
-                "created_at": datetime.utcnow(),
-                "updated_at": datetime.utcnow()
+                "created_at": datetime.now(timezone.utc),
+                "updated_at": datetime.now(timezone.utc)
             }
             result = await self.users_collection.insert_one(user_to_insert)
             user_id = str(result.inserted_id)
@@ -104,21 +104,17 @@ class AuthService:
     async def authenticate_user(self, login_data: UserLogin) -> Token:
         """Authenticate user and return token"""
         try:
-            # Use core authentication function
+            # CORRECTED: Call core_authenticate_user with only email and password.
+            # The third argument, self.users_collection, has been removed.
             user = await core_authenticate_user(login_data.email, login_data.password)
-
+    
             if not user:
                 raise HTTPException(
                     status_code=status.HTTP_401_UNAUTHORIZED,
                     detail="Invalid email or password"
                 )
-
-            # Convert ObjectId to string and fix field names
-            user["id"] = str(user["_id"])
-            del user["_id"]
-            user["emailVerified"] = user.pop("email_verified", None)
-            user["createdAt"] = user.pop("created_at")
-            user["updatedAt"] = user.pop("updated_at")
+    
+            # The rest of your function remains the same...
             
             # Generate token
             access_token_expires = timedelta(minutes=1440)
@@ -126,20 +122,21 @@ class AuthService:
                 data={"sub": user["id"], "email": user['email']},
                 expires_delta=access_token_expires
             )
-
+    
             # Create user response
             user_response = UserResponse(**user)
-
+    
             return Token(
                 access_token=access_token,
                 token_type="bearer",
                 expires_in=1440 * 60,
                 user=user_response
             )
-
+    
         except HTTPException:
             raise
         except Exception as e:
+            # This part of your code is what caught the original error and logged it
             logger.error(f"Error authenticating user: {e}")
             raise HTTPException(
                 status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
@@ -150,7 +147,7 @@ class AuthService:
         """Update user profile"""
         try:
             update_dict = update_data.dict(exclude_unset=True)
-            update_dict["updated_at"] = datetime.utcnow()
+            update_dict["updated_at"] = datetime.now(timezone.utc)
 
             updated_user = await self.users_collection.find_one_and_update(
                 {"_id": ObjectId(user_id)},
@@ -194,7 +191,7 @@ class AuthService:
             new_hashed_password = get_password_hash(password_data.new_password)
             await self.users_collection.update_one(
                 {"_id": ObjectId(user_id)},
-                {"$set": {"password": new_hashed_password, "updated_at": datetime.utcnow()}}
+                {"$set": {"password": new_hashed_password, "updated_at": datetime.now(timezone.utc)}}
             )
 
             return {"message": "Password changed successfully"}
@@ -223,4 +220,3 @@ class AuthService:
         
         return UserResponse(**user)
 
-auth_service = AuthService()

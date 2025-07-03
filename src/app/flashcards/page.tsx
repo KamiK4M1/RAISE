@@ -24,18 +24,36 @@ export default function FlashcardsPage() {
   const [sessionStartTime, setSessionStartTime] = useState(Date.now())
   const [cardStartTime, setCardStartTime] = useState(Date.now())
   
-  // Get document ID from URL or use default for demo
-  const documentId = "demo-document" // This should come from router params in real app
-
   // Load flashcards from backend
   useEffect(() => {
     const loadFlashcards = async () => {
       try {
         setLoading(true)
-        const response = await apiService.getReviewSession(documentId, 10)
+        const response = await apiService.getAllUserFlashcards(0, 50)
         
-        if (response.success && response.data) {
-          setFlashcards(response.data.cards)
+        if (response.success && response.data && response.data.flashcards) {
+          // Filter flashcards that are due for review or randomly select some
+          const allCards = response.data.flashcards
+          const now = new Date()
+          
+          // Get cards due for review first
+          const dueCards = allCards.filter(card => {
+            const nextReview = new Date(card.next_review)
+            return nextReview <= now
+          })
+          
+          // If we don't have enough due cards, add some random ones
+          let sessionCards = dueCards
+          if (sessionCards.length < 10) {
+            const remainingCards = allCards.filter(card => {
+              const nextReview = new Date(card.next_review)
+              return nextReview > now
+            })
+            const needed = Math.min(10 - sessionCards.length, remainingCards.length)
+            sessionCards = [...sessionCards, ...remainingCards.slice(0, needed)]
+          }
+          
+          setFlashcards(sessionCards.slice(0, 10))
           setCurrentCard(0)
           setShowAnswer(false)
           setSessionStartTime(Date.now())
@@ -53,7 +71,7 @@ export default function FlashcardsPage() {
     }
 
     loadFlashcards()
-  }, [documentId])
+  }, [])
 
   const handleAnswer = async (difficulty: "easy" | "medium" | "hard") => {
     if (flashcards.length === 0) return
@@ -148,10 +166,28 @@ export default function FlashcardsPage() {
                 const loadFlashcards = async () => {
                   try {
                     setLoading(true)
-                    const response = await apiService.getReviewSession(documentId, 10)
+                    const response = await apiService.getAllUserFlashcards(0, 50)
                     
-                    if (response.success && response.data) {
-                      setFlashcards(response.data.cards)
+                    if (response.success && response.data && response.data.flashcards) {
+                      const allCards = response.data.flashcards
+                      const now = new Date()
+                      
+                      const dueCards = allCards.filter(card => {
+                        const nextReview = new Date(card.next_review)
+                        return nextReview <= now
+                      })
+                      
+                      let sessionCards = dueCards
+                      if (sessionCards.length < 10) {
+                        const remainingCards = allCards.filter(card => {
+                          const nextReview = new Date(card.next_review)
+                          return nextReview > now
+                        })
+                        const needed = Math.min(10 - sessionCards.length, remainingCards.length)
+                        sessionCards = [...sessionCards, ...remainingCards.slice(0, needed)]
+                      }
+                      
+                      setFlashcards(sessionCards.slice(0, 10))
                       setCurrentCard(0)
                       setShowAnswer(false)
                       setSessionStartTime(Date.now())
@@ -199,10 +235,10 @@ export default function FlashcardsPage() {
         <div className="text-center">
           <Brain className="h-12 w-12 text-gray-400 mx-auto mb-4" />
           <h2 className="text-xl font-semibold text-gray-900 mb-2">ไม่พบแฟลชการ์ด</h2>
-          <p className="text-gray-600 mb-4">กรุณาอัปโหลดเอกสารและสร้างแฟลชการ์ดก่อน</p>
-          <Link href="/upload">
+          <p className="text-gray-600 mb-4">คุณยังไม่มีแฟลชการ์ด กรุณาสร้างแฟลชการ์ดก่อน</p>
+          <Link href="/flashcards/generate">
             <Button className="bg-blue-600 hover:bg-blue-700">
-              อัปโหลดเอกสาร
+              สร้างแฟลชการ์ด
             </Button>
           </Link>
         </div>
@@ -296,7 +332,7 @@ export default function FlashcardsPage() {
                     <CardTitle className="text-lg">แฟลชการ์ด</CardTitle>
                     <CardDescription>
                       ระดับความยาก: {flashcards[currentCard].difficulty} | ทบทวนครั้งถัดไป:{" "}
-                      {flashcards[currentCard].next_review}
+                      {new Date(flashcards[currentCard].next_review).toLocaleDateString('th-TH')}
                     </CardDescription>
                   </div>
                   <Button
@@ -313,13 +349,13 @@ export default function FlashcardsPage() {
               <CardContent className="flex-1 flex flex-col justify-center">
                 <div className="text-center mb-8">
                   <h2 className="text-2xl font-bold text-gray-900 mb-4">คำถาม</h2>
-                  <p className="text-lg text-gray-700 leading-relaxed">{flashcards[currentCard].question}</p>
+                  <p className="text-lg text-gray-700 leading-relaxed whitespace-pre-wrap">{flashcards[currentCard].question}</p>
                 </div>
 
                 {showAnswer && (
                   <div className="border-t pt-8">
                     <h3 className="text-xl font-bold text-blue-600 mb-4 text-center">คำตอบ</h3>
-                    <p className="text-gray-700 leading-relaxed text-center">{flashcards[currentCard].answer}</p>
+                    <p className="text-gray-700 leading-relaxed text-center whitespace-pre-wrap">{flashcards[currentCard].answer}</p>
                   </div>
                 )}
               </CardContent>

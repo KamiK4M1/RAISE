@@ -20,10 +20,14 @@ export interface Document {
   filename: string;
   file_type: string;
   file_size: number;
-  processing_status: 'pending' | 'processing' | 'completed' | 'failed';
+  processing_status?: 'pending' | 'processing' | 'completed' | 'failed';
+  status?: 'pending' | 'processing' | 'completed' | 'failed';
   processed_at?: string;
   created_at: string;
-  chunk_count: number;
+  chunk_count?: number;
+  tags?: string[];
+  summary?: string;
+  version?: number;
 }
 
 export interface Flashcard {

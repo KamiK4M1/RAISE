@@ -31,7 +31,7 @@ export default function ReportsPage() {
     const loadReportsData = async () => {
       try {
         const days = timeRange === "week" ? 7 : 30
-        const response = await apiService.getUserAnalytics(days)
+        const response = await apiService.getUserAnalytics()
         
         if (response.success && response.data) {
           const data = response.data

@@ -30,8 +30,22 @@ class FlashcardService:
     """Service for handling flashcard operations using MongoDB"""
 
     def __init__(self):
-        self.flashcards_collection = mongodb_manager.get_flashcards_collection()
-        self.documents_collection = mongodb_manager.get_documents_collection()
+        """
+        Service Initializer.
+        Collections are now loaded lazily via properties to ensure
+        the database is connected before they are accessed.
+        """
+        pass
+
+    @property
+    def flashcards_collection(self):
+        """Lazily gets the flashcards collection."""
+        return mongodb_manager.get_flashcards_collection()
+
+    @property
+    def documents_collection(self):
+        """Lazily gets the documents collection."""
+        return mongodb_manager.get_documents_collection()
 
     async def create_flashcard(self, user_id: str, flashcard_data: FlashcardCreate) -> FlashcardResponse:
         """Create a new flashcard"""
@@ -58,7 +72,6 @@ class FlashcardService:
             )
             
             result = await self.flashcards_collection.insert_one(flashcard_dict)
-            flashcard_id = str(result.inserted_id)
             
             # Get the created flashcard
             flashcard = await self.flashcards_collection.find_one({"_id": result.inserted_id})

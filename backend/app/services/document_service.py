@@ -114,7 +114,7 @@ class DocumentService:
         """Update document"""
         try:
             update_dict = update_data.dict(exclude_unset=True)
-            update_dict["updated_at"] = datetime.utcnow()
+            update_dict["updated_at"] = datetime.datetime.utcnow()
 
             updated_document = await self.documents_collection.find_one_and_update(
                 {"_id": ObjectId(document_id), "user_id": ObjectId(user_id)},
@@ -168,7 +168,7 @@ class DocumentService:
         try:
             update_data = {
                 "status": status,
-                "updated_at": datetime.utcnow()
+                "updated_at": datetime.datetime.utcnow()
             }
             
             if error_message:

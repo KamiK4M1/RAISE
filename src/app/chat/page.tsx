@@ -9,7 +9,7 @@ import { Input } from "@/components/ui/input"
 import { Brain, ArrowLeft, Send, User, Bot, FileText, Loader2 } from "lucide-react"
 import Link from "next/link"
 import { apiService } from "@/lib/api"
-import { ChatMessage } from "@/types/api"
+
 
 interface Message {
   id: string
@@ -38,41 +38,9 @@ export default function ChatPage() {
   const [sessionId, setSessionId] = useState<string | undefined>(undefined)
   const messagesEndRef = useRef<HTMLDivElement>(null)
   
-  // Get document ID from URL or use default for demo
-  const documentId = "demo-document" // This should come from router params in real app
   
-  // Load chat history on component mount
-  useEffect(() => {
-    const loadChatHistory = async () => {
-      try {
-        const response = await apiService.getChatHistory(documentId)
-        if (response.success && response.data) {
-          const historyMessages: Message[] = response.data.map((msg: ChatMessage) => ([
-            {
-              id: `user-${msg.chat_id}`,
-              type: "user" as const,
-              content: msg.question,
-              timestamp: new Date(msg.created_at),
-            },
-            {
-              id: `ai-${msg.chat_id}`,
-              type: "ai" as const,
-              content: msg.answer,
-              timestamp: new Date(msg.created_at),
-              sources: msg.sources,
-              confidence: msg.confidence,
-            }
-          ])).flat()
-          
-          setMessages(prev => [...prev, ...historyMessages])
-        }
-      } catch (error) {
-        console.error('Failed to load chat history:', error)
-      }
-    }
-
-    loadChatHistory()
-  }, [documentId])
+  
+  
 
   const scrollToBottom = () => {
     messagesEndRef.current?.scrollIntoView({ behavior: "smooth" })
@@ -83,26 +51,25 @@ export default function ChatPage() {
   }, [messages])
 
   const handleSendMessage = async () => {
-    if (!inputMessage.trim() || isLoading) return
+    if (!inputMessage.trim() || isLoading) return;
 
     const userMessage: Message = {
       id: Date.now().toString(),
       type: "user",
       content: inputMessage,
       timestamp: new Date(),
-    }
+    };
 
-    setMessages((prev) => [...prev, userMessage])
-    const currentQuestion = inputMessage
-    setInputMessage("")
-    setIsLoading(true)
+    setMessages((prev) => [...prev, userMessage]);
+    const currentQuestion = inputMessage;
+    setInputMessage("");
+    setIsLoading(true);
 
     try {
       const response = await apiService.askQuestion(
-        documentId,
         currentQuestion,
         sessionId
-      )
+      );
 
       if (response.success && response.data) {
         const aiMessage: Message = {
@@ -112,19 +79,19 @@ export default function ChatPage() {
           timestamp: new Date(),
           sources: response.data.sources,
           confidence: response.data.confidence
-        }
+        };
 
-        setMessages((prev) => [...prev, aiMessage])
+        setMessages((prev) => [...prev, aiMessage]);
         
         // Update session ID if provided
         if (response.data.session_id) {
-          setSessionId(response.data.session_id)
+          setSessionId(response.data.session_id);
         }
       } else {
-        throw new Error(response.message || 'Failed to get response')
+        throw new Error(response.message || 'Failed to get response');
       }
     } catch (error) {
-      console.error("Error sending message:", error)
+      console.error("Error sending message:", error);
       
       // Fallback response for demo
       const fallbackResponse: Message = {
@@ -140,12 +107,12 @@ export default function ChatPage() {
           }
         ],
         confidence: 0.7
-      }
-      setMessages((prev) => [...prev, fallbackResponse])
+      };
+      setMessages((prev) => [...prev, fallbackResponse]);
     } finally {
-      setIsLoading(false)
+      setIsLoading(false);
     }
-  }
+  };
 
   const handleKeyPress = (e: React.KeyboardEvent) => {
     if (e.key === "Enter" && !e.shiftKey) {
@@ -175,7 +142,7 @@ export default function ChatPage() {
             </Link>
             <div className="flex items-center space-x-2">
               <Brain className="h-8 w-8 text-blue-600" />
-              <span className="text-2xl font-bold text-gray-900">AI Learning</span>
+              <span className="text-2xl font-bold text-gray-900">RAISE</span>
             </div>
           </div>
         </div>

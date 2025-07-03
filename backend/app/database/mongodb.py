@@ -13,7 +13,7 @@ logger = logging.getLogger(__name__)
 
 class Collections:
     """MongoDB collection names"""
-    USERS = "users"
+    USERS = "User"
     DOCUMENTS = "documents"
     DOCUMENT_CHUNKS = "document_chunks"
     FLASHCARDS = "flashcards"
@@ -145,8 +145,8 @@ def create_user_document(
         "role": role,
         "email_verified": None,
         "image": None,
-        "created_at": datetime.utcnow(),
-        "updated_at": datetime.utcnow()
+        "created_at": datetime.datetime.utcnow(),
+        "updated_at": datetime.datetime.utcnow()
     }
 
 def create_document_document(
@@ -170,8 +170,8 @@ def create_document_document(
         "status": "processing",
         "processing_progress": 0,
         "error_message": None,
-        "created_at": datetime.utcnow(),
-        "updated_at": datetime.utcnow()
+        "created_at": datetime.datetime.utcnow(),
+        "updated_at": datetime.datetime.utcnow()
     }
 
 def create_document_chunk_document(
@@ -190,7 +190,7 @@ def create_document_chunk_document(
         "embedding": embedding,
         "start_pos": start_pos,
         "end_pos": end_pos,
-        "created_at": datetime.utcnow()
+        "created_at": datetime.datetime.utcnow()
     }
 
 def create_flashcard_document(
@@ -209,12 +209,12 @@ def create_flashcard_document(
         "difficulty": difficulty,
         "ease_factor": 2.5,
         "interval": 1,
-        "next_review": datetime.utcnow(),
+        "next_review": datetime.datetime.utcnow(),
         "review_count": 0,
         "correct_count": 0,
         "incorrect_count": 0,
-        "created_at": datetime.utcnow(),
-        "updated_at": datetime.utcnow()
+        "created_at": datetime.datetime.utcnow(),
+        "updated_at": datetime.datetime.utcnow()
     }
 
 def create_quiz_document(
@@ -234,8 +234,8 @@ def create_quiz_document(
         "total_points": total_points,
         "time_limit": time_limit,
         "attempts_allowed": -1,  # Unlimited by default
-        "created_at": datetime.utcnow(),
-        "updated_at": datetime.utcnow()
+        "created_at": datetime.datetime.utcnow(),
+        "updated_at": datetime.datetime.utcnow()
     }
 
 def create_quiz_attempt_document(
@@ -256,7 +256,7 @@ def create_quiz_attempt_document(
         "total_points": total_points,
         "percentage": percentage,
         "time_taken": time_taken,
-        "completed_at": datetime.utcnow()
+        "completed_at": datetime.datetime.utcnow()
     }
 
 def create_chat_message_document(
@@ -277,7 +277,7 @@ def create_chat_message_document(
         "answer": answer,
         "sources": sources or [],
         "confidence": confidence,
-        "created_at": datetime.utcnow()
+        "created_at": datetime.datetime.utcnow()
     }
 
 # Global MongoDB manager instance

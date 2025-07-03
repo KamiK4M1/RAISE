@@ -5,6 +5,14 @@ import { Button } from "@/components/ui/button"
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card"
 import { Progress } from "@/components/ui/progress"
 import {
+  Dialog,
+  DialogContent,
+  DialogHeader,
+  DialogTitle,
+  DialogDescription,
+  DialogFooter,
+} from "@/components/ui/dialog"
+import {
   Brain,
   Upload,
   Zap,
@@ -15,10 +23,14 @@ import {
   Clock,
   Target,
   TrendingUp,
+  Trash2,
+  Eye,
+  LogOut,
 } from "lucide-react"
 import Link from "next/link"
 import { apiService } from "@/lib/api"
-import { UserAnalytics, Document } from "@/types/api"
+import { Document } from "@/types/api"
+
 
 export default function DashboardPage() {
   const [stats, setStats] = useState({
@@ -30,29 +42,101 @@ export default function DashboardPage() {
     totalStudyTime: 0,
   })
   const [recentDocuments, setRecentDocuments] = useState<Document[]>([])
+  const [recentActivities, setRecentActivities] = useState<any[]>([])
+  const [user, setUser] = useState<any>(null)
   const [loading, setLoading] = useState(true)
+  const [deletingDocuments, setDeletingDocuments] = useState<Set<string>>(new Set())
+  const [showLogoutDialog, setShowLogoutDialog] = useState(false)
+  const [isLoggingOut, setIsLoggingOut] = useState(false)
+
+  const handleLogoutClick = () => {
+    setShowLogoutDialog(true)
+  }
+
+  const handleLogoutConfirm = async () => {
+    setIsLoggingOut(true)
+    
+    try {
+      await apiService.logout()
+    } catch (error) {
+      console.error('Logout error:', error)
+      // Even if logout fails, clear local storage and redirect
+      if (typeof window !== 'undefined') {
+        localStorage.removeItem('auth_token')
+        window.location.href = '/login'
+      }
+    } finally {
+      setIsLoggingOut(false)
+      setShowLogoutDialog(false)
+    }
+  }
+
+  const handleLogoutCancel = () => {
+    setShowLogoutDialog(false)
+  }
   
   useEffect(() => {
     const loadDashboardData = async () => {
       try {
-        // Load user analytics
-        const analyticsResponse = await apiService.getUserAnalytics(30)
-        if (analyticsResponse.success && analyticsResponse.data) {
-          const data = analyticsResponse.data
-          setStats({
-            documentsUploaded: data.learning_progress.total_documents_studied,
-            flashcardsStudied: data.flashcard_stats.total_reviews,
-            quizzesTaken: data.quiz_stats.total_attempts,
-            questionsAsked: data.chat_stats.total_questions,
-            studyStreak: data.flashcard_stats.streak_days,
-            totalStudyTime: Math.round(data.study_patterns.total_study_time / 60), // Convert to hours
-          })
+        // Load current user
+        try {
+          const userResponse = await apiService.getCurrentUser()
+          if (userResponse.success && userResponse.data) {
+            setUser(userResponse.data)
+          }
+        } catch (userError) {
+          console.error('Failed to load user data:', userError)
         }
 
-        // Load recent documents
-        const documentsResponse = await apiService.getDocuments()
+        // Load recent documents first
+        const documentsResponse = await apiService.listDocuments()
+        let documentCount = 0
         if (documentsResponse.success && documentsResponse.data) {
           setRecentDocuments(documentsResponse.data.slice(0, 5))
+          documentCount = documentsResponse.data.length
+        }
+
+        // Load user analytics
+        try {
+          const analyticsResponse = await apiService.getUserAnalytics()
+          if (analyticsResponse.success && analyticsResponse.data) {
+            const data = analyticsResponse.data
+            setStats({
+              documentsUploaded: documentCount, // Use actual document count
+              flashcardsStudied: data.flashcard_stats?.total_reviews || 0,
+              quizzesTaken: data.quiz_stats?.total_attempts || 0,
+              questionsAsked: data.chat_stats?.total_questions || 0,
+              studyStreak: data.flashcard_stats?.streak_days || 0,
+              totalStudyTime: Math.round((data.study_patterns?.total_study_time || 0) / 60), // Convert to hours
+            })
+          } else {
+            // Fallback if analytics fails
+            setStats(prev => ({
+              ...prev,
+              documentsUploaded: documentCount
+            }))
+          }
+        } catch (analyticsError) {
+          console.error('Analytics failed, using document count only:', analyticsError)
+          setStats(prev => ({
+            ...prev,
+            documentsUploaded: documentCount
+          }))
+        }
+
+        // Load recent activities
+        try {
+          console.log('Fetching recent activities...')
+          const activitiesResponse = await apiService.getRecentActivity(5)
+          console.log('Activities response:', activitiesResponse)
+          if (activitiesResponse.success && activitiesResponse.data?.activities) {
+            console.log('Setting activities:', activitiesResponse.data.activities)
+            setRecentActivities(activitiesResponse.data.activities)
+          } else {
+            console.log('No activities data found in response')
+          }
+        } catch (activitiesError) {
+          console.error('Failed to load recent activities:', activitiesError)
         }
       } catch (error) {
         console.error('Error loading dashboard data:', error)
@@ -73,129 +157,167 @@ export default function DashboardPage() {
     loadDashboardData()
   }, [])
 
+  const handleDeleteDocument = async (documentId: string) => {
+    if (!confirm('คุณแน่ใจหรือไม่ว่าต้องการลบเอกสารนี้? การกระทำนี้ไม่สามารถยกเลิกได้')) {
+      return
+    }
+
+    setDeletingDocuments(prev => new Set(prev).add(documentId))
+    
+    try {
+      const response = await apiService.deleteDocument(documentId)
+      if (response.success) {
+        // Remove the document from the list
+        setRecentDocuments(prev => prev.filter(doc => doc.document_id !== documentId))
+        // Update the document count
+        setStats(prev => ({
+          ...prev,
+          documentsUploaded: prev.documentsUploaded - 1
+        }))
+      } else {
+        throw new Error(response.message || 'Failed to delete document')
+      }
+    } catch (error) {
+      console.error('Error deleting document:', error)
+      alert('เกิดข้อผิดพลาดในการลบเอกสาร กรุณาลองใหม่อีกครั้ง')
+    } finally {
+      setDeletingDocuments(prev => {
+        const newSet = new Set(prev)
+        newSet.delete(documentId)
+        return newSet
+      })
+    }
+  }
+
   return (
     <div className="min-h-screen bg-gray-50">
       {/* Navigation */}
       <nav className="bg-white border-b sticky top-0 z-50">
         <div className="container mx-auto px-4 py-4 flex items-center justify-between">
           <div className="flex items-center space-x-2">
-            <Brain className="h-8 w-8 text-blue-600" />
-            <span className="text-2xl font-bold text-gray-900">RAISE</span>
+            <Brain className="h-6 w-6 sm:h-8 sm:w-8 text-blue-600" />
+            <span className="text-xl sm:text-2xl font-bold text-gray-900">RAISE</span>
           </div>
-          <div className="flex items-center space-x-4">
-            <span className="text-gray-600">สวัสดี, นักเรียน</span>
-            <Button variant="outline" className="bg-white text-gray-700 border-gray-300 hover:bg-gray-50">
+          <div className="flex items-center space-x-2 sm:space-x-4">
+            <span className="hidden sm:inline text-gray-600">สวัสดี, {user?.name || 'นักเรียน'}</span>
+            <span className="sm:hidden text-gray-600 text-sm">{user?.name || 'นักเรียน'}</span>
+            <Button 
+              onClick={handleLogoutClick}
+              variant="outline" 
+              className="bg-white text-gray-700 border-gray-300 hover:bg-gray-50 text-sm sm:text-base px-2 sm:px-4"
+            >
+              <LogOut className="h-4 w-4 mr-2" />
               ออกจากระบบ
             </Button>
           </div>
         </div>
       </nav>
 
-      <div className="container mx-auto px-4 py-8">
+      <div className="container mx-auto px-4 py-4 sm:py-8">
         {/* Welcome Section */}
-        <div className="mb-8">
-          <h1 className="text-3xl font-bold text-gray-900 mb-2">แดชบอร์ดการเรียนรู้</h1>
-          <p className="text-gray-600">ติดตามความก้าวหน้าและเข้าถึงเครื่องมือการเรียนรู้ของคุณ</p>
+        <div className="mb-6 sm:mb-8">
+          <h1 className="text-2xl sm:text-3xl font-bold text-gray-900 mb-2">แดชบอร์ดการเรียนรู้</h1>
+          <p className="text-sm sm:text-base text-gray-600">ติดตามความก้าวหน้าและเข้าถึงเครื่องมือการเรียนรู้ของคุณ</p>
         </div>
 
         {/* Quick Stats */}
-        <div className="grid grid-cols-2 md:grid-cols-4 gap-4 mb-8">
+        <div className="grid grid-cols-2 lg:grid-cols-4 gap-3 sm:gap-4 mb-6 sm:mb-8">
           <Card className="border-0 shadow-sm">
-            <CardContent className="p-4">
+            <CardContent className="p-3 sm:p-4">
               <div className="flex items-center justify-between">
                 <div>
-                  <p className="text-sm text-gray-600">เอกสาร</p>
-                  <p className="text-2xl font-bold text-gray-900">{stats.documentsUploaded}</p>
+                  <p className="text-xs sm:text-sm text-gray-600">เอกสาร</p>
+                  <p className="text-xl sm:text-2xl font-bold text-gray-900">{stats.documentsUploaded}</p>
                 </div>
-                <FileText className="h-8 w-8 text-blue-600" />
+                <FileText className="h-6 w-6 sm:h-8 sm:w-8 text-blue-600" />
               </div>
             </CardContent>
           </Card>
 
           <Card className="border-0 shadow-sm">
-            <CardContent className="p-4">
+            <CardContent className="p-3 sm:p-4">
               <div className="flex items-center justify-between">
                 <div>
-                  <p className="text-sm text-gray-600">แฟลชการ์ด</p>
-                  <p className="text-2xl font-bold text-gray-900">{stats.flashcardsStudied}</p>
+                  <p className="text-xs sm:text-sm text-gray-600">แฟลชการ์ด</p>
+                  <p className="text-xl sm:text-2xl font-bold text-gray-900">{stats.flashcardsStudied}</p>
                 </div>
-                <Zap className="h-8 w-8 text-purple-600" />
+                <Zap className="h-6 w-6 sm:h-8 sm:w-8 text-purple-600" />
               </div>
             </CardContent>
           </Card>
 
           <Card className="border-0 shadow-sm">
-            <CardContent className="p-4">
+            <CardContent className="p-3 sm:p-4">
               <div className="flex items-center justify-between">
                 <div>
-                  <p className="text-sm text-gray-600">แบบทดสอบ</p>
-                  <p className="text-2xl font-bold text-gray-900">{stats.quizzesTaken}</p>
+                  <p className="text-xs sm:text-sm text-gray-600">แบบทดสอบ</p>
+                  <p className="text-xl sm:text-2xl font-bold text-gray-900">{stats.quizzesTaken}</p>
                 </div>
-                <BookOpen className="h-8 w-8 text-green-600" />
+                <BookOpen className="h-6 w-6 sm:h-8 sm:w-8 text-green-600" />
               </div>
             </CardContent>
           </Card>
 
           <Card className="border-0 shadow-sm">
-            <CardContent className="p-4">
+            <CardContent className="p-3 sm:p-4">
               <div className="flex items-center justify-between">
                 <div>
-                  <p className="text-sm text-gray-600">เวลาเรียน (ชม.)</p>
-                  <p className="text-2xl font-bold text-gray-900">{stats.totalStudyTime}</p>
+                  <p className="text-xs sm:text-sm text-gray-600">เวลาเรียน (ชม.)</p>
+                  <p className="text-xl sm:text-2xl font-bold text-gray-900">{stats.totalStudyTime}</p>
                 </div>
-                <Clock className="h-8 w-8 text-orange-600" />
+                <Clock className="h-6 w-6 sm:h-8 sm:w-8 text-orange-600" />
               </div>
             </CardContent>
           </Card>
         </div>
 
-        <div className="grid lg:grid-cols-3 gap-8">
+        <div className="grid lg:grid-cols-3 gap-4 sm:gap-6 lg:gap-8">
           {/* Main Actions */}
-          <div className="lg:col-span-2 space-y-6">
+          <div className="lg:col-span-2 space-y-4 sm:space-y-6">
             {/* Quick Actions */}
             <Card className="border-0 shadow-sm">
-              <CardHeader>
-                <CardTitle>เครื่องมือการเรียนรู้</CardTitle>
-                <CardDescription>เลือกเครื่องมือที่ต้องการใช้งาน</CardDescription>
+              <CardHeader className="pb-3 sm:pb-6">
+                <CardTitle className="text-lg sm:text-xl">เครื่องมือการเรียนรู้</CardTitle>
+                <CardDescription className="text-sm">เลือกเครื่องมือที่ต้องการใช้งาน</CardDescription>
               </CardHeader>
-              <CardContent>
-                <div className="grid md:grid-cols-2 gap-4">
+              <CardContent className="pt-0">
+                <div className="grid sm:grid-cols-2 gap-3 sm:gap-4">
                   <Link href="/upload">
                     <Card className="border border-gray-200 hover:border-blue-300 hover:shadow-md transition-all cursor-pointer">
-                      <CardContent className="p-6 text-center">
-                        <Upload className="h-12 w-12 text-blue-600 mx-auto mb-4" />
-                        <h3 className="font-semibold mb-2">อัปโหลดเอกสาร</h3>
-                        <p className="text-sm text-gray-600">เพิ่มเอกสารใหม่เพื่อสร้างเครื่องมือการเรียนรู้</p>
+                      <CardContent className="p-4 sm:p-6 text-center">
+                        <Upload className="h-8 w-8 sm:h-12 sm:w-12 text-blue-600 mx-auto mb-3 sm:mb-4" />
+                        <h3 className="font-semibold mb-2 text-sm sm:text-base">อัปโหลดเอกสาร</h3>
+                        <p className="text-xs sm:text-sm text-gray-600">เพิ่มเอกสารใหม่เพื่อสร้างเครื่องมือการเรียนรู้</p>
                       </CardContent>
                     </Card>
                   </Link>
 
-                  <Link href="/flashcards">
+                  <Link href="/flashcards/generate">
                     <Card className="border border-gray-200 hover:border-purple-300 hover:shadow-md transition-all cursor-pointer">
-                      <CardContent className="p-6 text-center">
-                        <Zap className="h-12 w-12 text-purple-600 mx-auto mb-4" />
-                        <h3 className="font-semibold mb-2">แฟลชการ์ด</h3>
-                        <p className="text-sm text-gray-600">ทบทวนความรู้ด้วยแฟลชการ์ดอัจฉริยะ</p>
+                      <CardContent className="p-4 sm:p-6 text-center">
+                        <Zap className="h-8 w-8 sm:h-12 sm:w-12 text-purple-600 mx-auto mb-3 sm:mb-4" />
+                        <h3 className="font-semibold mb-2 text-sm sm:text-base">แฟลชการ์ด</h3>
+                        <p className="text-xs sm:text-sm text-gray-600">สร้างและทบทวนแฟลชการ์ดอัจฉริยะ</p>
                       </CardContent>
                     </Card>
                   </Link>
 
                   <Link href="/quiz">
                     <Card className="border border-gray-200 hover:border-green-300 hover:shadow-md transition-all cursor-pointer">
-                      <CardContent className="p-6 text-center">
-                        <BookOpen className="h-12 w-12 text-green-600 mx-auto mb-4" />
-                        <h3 className="font-semibold mb-2">แบบทดสอบ</h3>
-                        <p className="text-sm text-gray-600">ทดสอบความรู้ด้วยแบบทดสอบอัตโนมัติ</p>
+                      <CardContent className="p-4 sm:p-6 text-center">
+                        <BookOpen className="h-8 w-8 sm:h-12 sm:w-12 text-green-600 mx-auto mb-3 sm:mb-4" />
+                        <h3 className="font-semibold mb-2 text-sm sm:text-base">แบบทดสอบ</h3>
+                        <p className="text-xs sm:text-sm text-gray-600">ทดสอบความรู้ด้วยแบบทดสอบอัตโนมัติ</p>
                       </CardContent>
                     </Card>
                   </Link>
 
                   <Link href="/chat">
                     <Card className="border border-gray-200 hover:border-orange-300 hover:shadow-md transition-all cursor-pointer">
-                      <CardContent className="p-6 text-center">
-                        <MessageSquare className="h-12 w-12 text-orange-600 mx-auto mb-4" />
-                        <h3 className="font-semibold mb-2">ถาม AI</h3>
-                        <p className="text-sm text-gray-600">สอบถามคำถามเกี่ยวกับเนื้อหา</p>
+                      <CardContent className="p-4 sm:p-6 text-center">
+                        <MessageSquare className="h-8 w-8 sm:h-12 sm:w-12 text-orange-600 mx-auto mb-3 sm:mb-4" />
+                        <h3 className="font-semibold mb-2 text-sm sm:text-base">ถาม AI</h3>
+                        <p className="text-xs sm:text-sm text-gray-600">สอบถามคำถามเกี่ยวกับเนื้อหา</p>
                       </CardContent>
                     </Card>
                   </Link>
@@ -210,37 +332,93 @@ export default function DashboardPage() {
               </CardHeader>
               <CardContent>
                 <div className="space-y-4">
-                  <div className="flex items-center space-x-3">
-                    <div className="w-2 h-2 bg-blue-600 rounded-full"></div>
-                    <span className="text-sm">อัปโหลดเอกสาร "คณิตศาสตร์ บทที่ 5"</span>
-                    <span className="text-xs text-gray-500 ml-auto">2 ชั่วโมงที่แล้ว</span>
-                  </div>
-                  <div className="flex items-center space-x-3">
-                    <div className="w-2 h-2 bg-purple-600 rounded-full"></div>
-                    <span className="text-sm">ทำแฟลชการ์ด "สมการเชิงเส้น" 15 ใบ</span>
-                    <span className="text-xs text-gray-500 ml-auto">5 ชั่วโมงที่แล้ว</span>
-                  </div>
-                  <div className="flex items-center space-x-3">
-                    <div className="w-2 h-2 bg-green-600 rounded-full"></div>
-                    <span className="text-sm">ทำแบบทดสอบ "ฟิสิกส์ บทที่ 3" คะแนน 85%</span>
-                    <span className="text-xs text-gray-500 ml-auto">1 วันที่แล้ว</span>
-                  </div>
+                  {recentActivities.length > 0 ? (
+                    recentActivities.map((activity, index) => {
+                      const getIconColorClass = (color: string) => {
+                        switch(color) {
+                          case 'blue': return 'bg-blue-600'
+                          case 'purple': return 'bg-purple-600'
+                          case 'green': return 'bg-green-600'
+                          case 'orange': return 'bg-orange-600'
+                          default: return 'bg-blue-600'
+                        }
+                      }
+                      
+                      return (
+                        <div key={index} className="flex items-center space-x-3">
+                          <div className={`w-2 h-2 ${getIconColorClass(activity.icon_color || 'blue')} rounded-full`}></div>
+                          <span className="text-sm">{activity.title}</span>
+                          <span className="text-xs text-gray-500 ml-auto">{activity.relative_time}</span>
+                        </div>
+                      )
+                    })
+                  ) : (
+                    <div className="text-center text-gray-500 text-sm py-4">
+                      ยังไม่มีกิจกรรมล่าสุด
+                    </div>
+                  )}
+                </div>
+              </CardContent>
+            </Card>
+
+            {/* Recent Documents */}
+            <Card className="border-0 shadow-sm">
+              <CardHeader>
+                <CardTitle>เอกสารล่าสุด</CardTitle>
+              </CardHeader>
+              <CardContent>
+                <div className="space-y-3">
+                  {recentDocuments.length > 0 ? (
+                    recentDocuments.map((document) => (
+                      <div key={document.document_id} className="flex items-center justify-between p-3 bg-gray-50 rounded-lg">
+                        <div className="flex items-center space-x-3 min-w-0 flex-1">
+                          <FileText className="h-5 w-5 text-blue-600 flex-shrink-0" />
+                          <div className="min-w-0 flex-1">
+                            <p className="text-sm font-medium text-gray-900 truncate">{document.filename}</p>
+                            <p className="text-xs text-gray-500">
+                              {new Date(document.created_at).toLocaleDateString('th-TH')}
+                            </p>
+                          </div>
+                        </div>
+                        <div className="flex items-center space-x-2 flex-shrink-0">
+                          <Link href={`/documents/${document.document_id}`}>
+                            <Button variant="ghost" size="sm" className="text-blue-600 hover:text-blue-800">
+                              <Eye className="h-4 w-4" />
+                            </Button>
+                          </Link>
+                          <Button
+                            variant="ghost"
+                            size="sm"
+                            onClick={() => handleDeleteDocument(document.document_id)}
+                            disabled={deletingDocuments.has(document.document_id)}
+                            className="text-red-600 hover:text-red-800"
+                          >
+                            <Trash2 className="h-4 w-4" />
+                          </Button>
+                        </div>
+                      </div>
+                    ))
+                  ) : (
+                    <div className="text-center text-gray-500 text-sm py-4">
+                      ยังไม่มีเอกสารที่อัปโหลด
+                    </div>
+                  )}
                 </div>
               </CardContent>
             </Card>
           </div>
 
           {/* Sidebar */}
-          <div className="space-y-6">
+          <div className="space-y-4 sm:space-y-6">
             {/* Study Streak */}
             <Card className="border-0 shadow-sm">
-              <CardHeader>
-                <CardTitle className="flex items-center space-x-2">
-                  <Target className="h-5 w-5 text-orange-600" />
+              <CardHeader className="pb-3 sm:pb-6">
+                <CardTitle className="flex items-center space-x-2 text-base sm:text-lg">
+                  <Target className="h-4 w-4 sm:h-5 sm:w-5 text-orange-600" />
                   <span>สถิติการเรียน</span>
                 </CardTitle>
               </CardHeader>
-              <CardContent>
+              <CardContent className="pt-0">
                 <div className="space-y-4">
                   <div>
                     <div className="flex justify-between items-center mb-2">
@@ -263,13 +441,13 @@ export default function DashboardPage() {
 
             {/* Performance */}
             <Card className="border-0 shadow-sm">
-              <CardHeader>
-                <CardTitle className="flex items-center space-x-2">
-                  <TrendingUp className="h-5 w-5 text-green-600" />
+              <CardHeader className="pb-3 sm:pb-6">
+                <CardTitle className="flex items-center space-x-2 text-base sm:text-lg">
+                  <TrendingUp className="h-4 w-4 sm:h-5 sm:w-5 text-green-600" />
                   <span>ผลการเรียน</span>
                 </CardTitle>
               </CardHeader>
-              <CardContent>
+              <CardContent className="pt-0">
                 <div className="space-y-3">
                   <div className="flex justify-between">
                     <span className="text-sm text-gray-600">คะแนนเฉลี่ย</span>
@@ -289,26 +467,26 @@ export default function DashboardPage() {
 
             {/* Quick Access */}
             <Card className="border-0 shadow-sm">
-              <CardHeader>
-                <CardTitle>เข้าถึงด่วน</CardTitle>
+              <CardHeader className="pb-3 sm:pb-6">
+                <CardTitle className="text-base sm:text-lg">เข้าถึงด่วน</CardTitle>
               </CardHeader>
-              <CardContent>
+              <CardContent className="pt-0">
                 <div className="space-y-2">
                   <Link href="/reports">
                     <Button
                       variant="outline"
-                      className="w-full justify-start bg-white text-gray-700 border-gray-300 hover:bg-gray-50"
+                      className="w-full justify-start bg-white text-gray-700 border-gray-300 hover:bg-gray-50 text-sm sm:text-base h-auto py-2 sm:py-3"
                     >
-                      <BarChart3 className="h-4 w-4 mr-2" />
+                      <BarChart3 className="h-3 w-3 sm:h-4 sm:w-4 mr-2" />
                       รายงานความก้าวหน้า
                     </Button>
                   </Link>
                   <Link href="/settings">
                     <Button
                       variant="outline"
-                      className="w-full justify-start bg-white text-gray-700 border-gray-300 hover:bg-gray-50"
+                      className="w-full justify-start bg-white text-gray-700 border-gray-300 hover:bg-gray-50 text-sm sm:text-base h-auto py-2 sm:py-3"
                     >
-                      <Target className="h-4 w-4 mr-2" />
+                      <Target className="h-3 w-3 sm:h-4 sm:w-4 mr-2" />
                       ตั้งค่าการเรียนรู้
                     </Button>
                   </Link>
@@ -318,6 +496,44 @@ export default function DashboardPage() {
           </div>
         </div>
       </div>
+
+      {/* Logout Confirmation Dialog */}
+      <Dialog open={showLogoutDialog} onOpenChange={setShowLogoutDialog}>
+        <DialogContent>
+          <DialogHeader>
+            <DialogTitle>ออกจากระบบ</DialogTitle>
+            <DialogDescription>
+              คุณแน่ใจหรือไม่ว่าต้องการออกจากระบบ? คุณจะต้องเข้าสู่ระบบใหม่เพื่อเข้าใช้งาน
+            </DialogDescription>
+          </DialogHeader>
+          <DialogFooter>
+            <Button
+              variant="outline"
+              onClick={handleLogoutCancel}
+              disabled={isLoggingOut}
+            >
+              ยกเลิก
+            </Button>
+            <Button
+              variant="destructive"
+              onClick={handleLogoutConfirm}
+              disabled={isLoggingOut}
+            >
+              {isLoggingOut ? (
+                <>
+                  <div className="w-4 h-4 border-2 border-white border-t-transparent rounded-full animate-spin mr-2" />
+                  กำลังออกจากระบบ...
+                </>
+              ) : (
+                <>
+                  <LogOut className="h-4 w-4 mr-2" />
+                  ออกจากระบบ
+                </>
+              )}
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
     </div>
   )
 }

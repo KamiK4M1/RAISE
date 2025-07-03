@@ -49,7 +49,7 @@ class DocumentUpload(BaseModel):
     fileSize: int
     title: Optional[str] = None
 
-class DocumentResponse(BaseModel):
+class DocumentAPIResponse(BaseModel):
     success: bool
     data: Optional[dict] = None
     message: str

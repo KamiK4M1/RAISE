@@ -47,87 +47,30 @@ export async function POST(request: NextRequest) {
     const body = await request.json()
     const { name, email, password } = body
 
-    // Validate required fields
-    if (!name || !email || !password) {
-      return NextResponse.json(
-        { error: "กรุณากรอกข้อมูลให้ครบทุกช่อง" },
-        { status: 400 }
-      )
-    }
-
-    // Validate name
-    if (name.trim().length < 2) {
-      return NextResponse.json(
-        { error: "ชื่อต้องมีอย่างน้อย 2 ตัวอักษร" },
-        { status: 400 }
-      )
-    }
-
-    // Validate email
-    if (!validateEmail(email)) {
-      return NextResponse.json(
-        { error: "รูปแบบอีเมลไม่ถูกต้อง" },
-        { status: 400 }
-      )
-    }
-
-    // Validate password
-    const passwordError = validatePassword(password)
-    if (passwordError) {
-      return NextResponse.json(
-        { error: passwordError },
-        { status: 400 }
-      )
-    }
-
-    await client.connect()
-    const db = client.db()
-    const users = db.collection("users")
-
-    // Check if user already exists
-    const existingUser = await prisma.user.findUnique({
-      where: { email: email.toLowerCase() },
-    })
-    
-    if (existingUser) {
-      return NextResponse.json(
-        { error: "อีเมลนี้ถูกใช้งานแล้ว" },
-        { status: 409 }
-      )
-    }
-
-
-    // Hash password
-   const hashedPassword = await bcrypt.hash(password, 12)
-
-
-    // Create user
-    const user = await prisma.user.create({
-      data: {
-        name: name.trim(),
-        email: email.toLowerCase(),
-        password: hashedPassword,
+    // Forward registration to backend
+    const backendResponse = await fetch(`${process.env.NEXT_PUBLIC_API_URL}/api/auth/register`, {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
       },
+      body: JSON.stringify({ name, email, password }),
     })
 
-    const { password: _, ...userWithoutPassword } = user
+    const data = await backendResponse.json()
 
+    if (!backendResponse.ok) {
+      return NextResponse.json(
+        { error: data.detail || "Registration failed" },
+        { status: backendResponse.status }
+      )
+    }
 
-    // Remove password from response
-    return NextResponse.json(
-      {
-        message: "สมัครสมาชิกสำเร็จ",
-        user: userWithoutPassword,
-      },
-      { status: 201 }
-    )
+    return NextResponse.json(data, { status: 201 })
   } catch (error) {
     console.error("Registration error:", error)
     return NextResponse.json(
-      { error: "เกิดข้อผิดพลาดภายในเซิร์ฟเวอร์" },
+      { error: "Internal server error" },
       { status: 500 }
     )
-  } finally {
-    await client.close()
   }
 }

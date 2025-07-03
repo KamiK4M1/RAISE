@@ -64,7 +64,7 @@ async def ask_question(
                 "avg_similarity": rag_response.context.avg_similarity
             },
             message="ตอบคำถามสำเร็จ",
-            timestamp=datetime.utcnow().isoformat() + "Z"
+            timestamp=datetime.datetime.utcnow().isoformat() + "Z"
         )
         
     except RAGError as e:
@@ -97,7 +97,7 @@ async def search_documents(
                 "results": results
             },
             message=f"พบผลการค้นหา {len(results)} รายการ",
-            timestamp=datetime.utcnow().isoformat() + "Z"
+            timestamp=datetime.datetime.utcnow().isoformat() + "Z"
         )
         
     except RAGError as e:
@@ -211,7 +211,7 @@ async def get_similar_questions(
                 "similar_questions": similar_questions
             },
             message=f"พบคำถามที่คล้ายกัน {len(similar_questions)} รายการ",
-            timestamp=datetime.utcnow().isoformat() + "Z"
+            timestamp=datetime.datetime.utcnow().isoformat() + "Z"
         )
         
     except Exception as e:
@@ -230,7 +230,7 @@ async def get_rag_statistics(
             success=True,
             data={"stats": stats},
             message="ดึงสถิติระบบ RAG สำเร็จ",
-            timestamp=datetime.utcnow().isoformat() + "Z"
+            timestamp=datetime.datetime.utcnow().isoformat() + "Z"
         )
         
     except Exception as e:
@@ -257,7 +257,7 @@ async def health_check(
             success=True,
             data={"health": health_status},
             message="ระบบ RAG ทำงานปกติ",
-            timestamp=datetime.utcnow().isoformat() + "Z"
+            timestamp=datetime.datetime.utcnow().isoformat() + "Z"
         )
         
     except Exception as e:
