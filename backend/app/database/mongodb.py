@@ -63,6 +63,9 @@ class MongoDBManager:
                 ("chunk_index", ASCENDING)
             ], unique=True)
             
+            # Create vector search index (Atlas only)
+            await self.create_vector_search_index(chunks_collection)
+            
             # Flashcards collection indexes
             flashcards_collection = get_collection(Collections.FLASHCARDS)
             await flashcards_collection.create_index([("user_id", ASCENDING)])
@@ -101,6 +104,46 @@ class MongoDBManager:
         except Exception as e:
             logger.error(f"Failed to create indexes: {e}")
             raise
+    
+    async def create_vector_search_index(self, collection: AsyncIOMotorCollection):
+        """Create vector search index for embeddings (Atlas only)"""
+        try:
+            from app.config import settings
+            
+            # Skip if not configured or not using Atlas
+            if not settings.mongodb_vector_search_index:
+                logger.info("Vector search index not configured, skipping")
+                return
+                
+            # Check if we're using MongoDB Atlas (contains .mongodb.net)
+            if ".mongodb.net" not in settings.mongodb_uri:
+                logger.info("Not using MongoDB Atlas, skipping vector search index")
+                return
+            
+            index_name = settings.mongodb_vector_search_index
+            
+            # Vector search index definition for BGE-M3 (1024 dimensions)
+            vector_index_definition = {
+                "fields": [
+                    {
+                        "type": "vector",
+                        "path": "embedding",
+                        "numDimensions": 1024,
+                        "similarity": "cosine"
+                    }
+                ]
+            }
+            
+            # Try to create the index (this requires Atlas API or MongoDB Compass)
+            # Note: Vector search indexes cannot be created via driver, must use Atlas UI/API
+            logger.warning(
+                f"Vector search index '{index_name}' must be created manually in MongoDB Atlas. "
+                f"Use the following definition in Atlas Search: {vector_index_definition}"
+            )
+            
+        except Exception as e:
+            logger.warning(f"Could not setup vector search index: {e}")
+            # Don't raise - vector search is optional
     
     def get_users_collection(self) -> AsyncIOMotorCollection:
         """Get users collection"""

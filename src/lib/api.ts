@@ -207,14 +207,13 @@ class ApiService {
   }
 
   async generateFlashcardsFromTopic(topic: string, count: number = 10, difficulty: string = 'medium'): Promise<ApiResponse<Flashcard[]>> {
-    const formData = new FormData();
-    formData.append('topic', topic);
-    formData.append('count', count.toString());
-    formData.append('difficulty', difficulty);
-    
     return this.request('/flashcards/generate-from-topic', {
       method: 'POST',
-      body: formData,
+      body: JSON.stringify({
+        topic,
+        count,
+        difficulty
+      }),
     });
   }
 

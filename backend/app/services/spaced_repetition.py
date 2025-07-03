@@ -1064,6 +1064,28 @@ class SpacedRepetitionService:
         except Exception as e:
             logger.error(f"Error updating learning analytics: {e}")
 
+    def get_review_urgency(self, next_review: datetime) -> str:
+        """
+        Calculate review urgency based on how overdue a card is
+        
+        Args:
+            next_review: The scheduled next review date
+            
+        Returns:
+            Urgency level: "overdue", "due", "soon", or "future"
+        """
+        now = datetime.utcnow()
+        time_diff = (next_review - now).total_seconds() / 3600  # Convert to hours
+        
+        if time_diff < -24:  # More than 1 day overdue
+            return "overdue"
+        elif time_diff <= 0:  # Due now or recently due
+            return "due"
+        elif time_diff <= 24:  # Due within 24 hours
+            return "soon"
+        else:  # Due in the future
+            return "future"
+
 # Global instance
 # spaced_repetition = SpacedRepetitionService()
 _spaced_repetition = None

@@ -8,6 +8,7 @@ import logging
 from dataclasses import dataclass
 from enum import Enum
 from fastapi import Depends
+from bson import ObjectId
 
 from app.database.mongodb import get_collection
 from app.core.embeddings import embedding_service
@@ -61,7 +62,7 @@ class RAGService:
         self.final_k_selection = 5
 
         self.documents_collection = get_collection("documents")
-        self.chunks_collection = get_collection("chunks")
+        self.chunks_collection = get_collection("document_chunks")
 
         self.embedding_service = embedding_service
         self.llm = together_ai
@@ -177,7 +178,7 @@ class RAGService:
                 return []
 
             all_chunks = []
-            chunks_collection = get_collection("chunks")
+            chunks_collection = get_collection("document_chunks")
             doc_ids = [str(doc['_id']) for doc in documents]
 
             async for chunk in chunks_collection.find({"document_id": {"$in": doc_ids}}):
@@ -192,20 +193,41 @@ class RAGService:
 
             logger.info(f"Searching across {len(documents)} documents with {len(all_chunks)} total chunks.")
 
-            # Calculate similarities
-            similarities = []
-            query_emb_np = np.array(query_embedding)
-
-            for i, chunk in enumerate(all_chunks):
-                chunk_emb_np = np.array(chunk['embedding'])
-                similarity = np.dot(query_emb_np, chunk_emb_np) / (
-                    np.linalg.norm(query_emb_np) * np.linalg.norm(chunk_emb_np)
+            # Use MongoDB Atlas Vector Search if available
+            from app.config import settings
+            
+            # Debug logging for similarity search method selection
+            logger.debug(f"Vector search index configured: {bool(settings.mongodb_vector_search_index)}")
+            logger.debug(f"MongoDB URI: {settings.mongodb_uri[:50]}...")
+            logger.debug(f"Is MongoDB Atlas: {'.mongodb.net' in settings.mongodb_uri}")
+            
+            if settings.mongodb_vector_search_index and ".mongodb.net" in settings.mongodb_uri:
+                logger.info(f"Using MongoDB Atlas Vector Search with index: {settings.mongodb_vector_search_index}")
+                similarities = await self._vector_search_mongodb(
+                    query_embedding=query_embedding,
+                    doc_ids=doc_ids,
+                    top_k=top_k
                 )
-                similarities.append({
-                    'index': i,
-                    'similarity': float(similarity),
-                    'chunk': chunk
-                })
+                
+                # If MongoDB vector search fails or returns empty, fallback
+                if not similarities:
+                    logger.warning("MongoDB Vector Search returned no results, falling back to embedding service")
+                    similarities = await self._similarity_search_fallback(
+                        query=query,
+                        all_chunks=all_chunks
+                    )
+            else:
+                # Log why we're not using MongoDB vector search
+                if not settings.mongodb_vector_search_index:
+                    logger.info("MongoDB vector search disabled: MONGODB_VECTOR_SEARCH_INDEX not configured")
+                elif ".mongodb.net" not in settings.mongodb_uri:
+                    logger.info("MongoDB vector search disabled: Not using MongoDB Atlas")
+                
+                logger.info("Using embedding service similarity search fallback")
+                similarities = await self._similarity_search_fallback(
+                    query=query,
+                    all_chunks=all_chunks
+                )
 
             # Filter by similarity threshold and sort
             relevant_chunks = [
@@ -472,6 +494,104 @@ class RAGService:
         except Exception as e:
             logger.error(f"Statistics error: {e}")
             return {}
+
+    async def _vector_search_mongodb(
+        self, 
+        query_embedding: List[float], 
+        doc_ids: List[str], 
+        top_k: int
+    ) -> List[Dict[str, Any]]:
+        """Perform vector search using MongoDB Atlas"""
+        try:
+            from app.config import settings
+            
+            logger.debug(f"Starting MongoDB Vector Search with {len(doc_ids)} documents, top_k={top_k}")
+            
+            chunks_collection = get_collection("document_chunks")
+            
+            # MongoDB Atlas Vector Search aggregation pipeline
+            pipeline = [
+                {
+                    "$vectorSearch": {
+                        "index": settings.mongodb_vector_search_index,
+                        "path": "embedding",
+                        "queryVector": query_embedding,
+                        "numCandidates": min(top_k * 10, 1000),  # Search more candidates for better results
+                        "limit": top_k * 3  # Get more results to filter by document_id
+                    }
+                },
+                {
+                    "$addFields": {
+                        "similarity": {"$meta": "vectorSearchScore"}
+                    }
+                },
+                {
+                    "$match": {
+                        "similarity": {"$gte": self.similarity_threshold},
+                        "document_id": {"$in": [ObjectId(doc_id) for doc_id in doc_ids]}
+                    }
+                },
+                {
+                    "$limit": top_k
+                }
+            ]
+            
+            logger.debug(f"Vector search pipeline: {pipeline}")
+            
+            similarities = []
+            documents_collection = get_collection("documents")
+            documents = await documents_collection.find({"_id": {"$in": [ObjectId(doc_id) for doc_id in doc_ids]}}).to_list(length=100)
+            doc_titles = {str(doc['_id']): doc['title'] for doc in documents}
+            
+            logger.debug(f"Found {len(documents)} documents for title mapping")
+            
+            result_count = 0
+            async for result in chunks_collection.aggregate(pipeline):
+                result_count += 1
+                logger.debug(f"Vector search result {result_count}: similarity={result.get('similarity', 'N/A')}")
+                similarities.append({
+                    'index': 0,  # Not needed for vector search
+                    'similarity': result['similarity'],
+                    'chunk': {
+                        **result,
+                        'document_title': doc_titles.get(str(result['document_id']), 'Unknown')
+                    }
+                })
+            
+            logger.info(f"MongoDB Vector Search found {len(similarities)} relevant chunks (threshold: {self.similarity_threshold})")
+            return similarities
+            
+        except Exception as e:
+            logger.error(f"MongoDB vector search error: {e}", exc_info=True)
+            return []
+
+    async def _similarity_search_fallback(
+        self, 
+        query: str, 
+        all_chunks: List[Dict[str, Any]]
+    ) -> List[Dict[str, Any]]:
+        """Fallback similarity search using embedding service"""
+        try:
+            similarities = []
+            
+            for i, chunk in enumerate(all_chunks):
+                # Use embedding service's similarity endpoint
+                similarity = await self.embedding_service.compute_similarity_texts(
+                    text1=query,
+                    text2=chunk['text']
+                )
+                similarities.append({
+                    'index': i,
+                    'similarity': similarity,
+                    'chunk': chunk
+                })
+            
+            logger.info(f"Fallback similarity search processed {len(similarities)} chunks")
+            return similarities
+            
+        except Exception as e:
+            logger.error(f"Fallback similarity search error: {e}")
+            return []
 
 # Global instance
 # rag_service = RAGService()

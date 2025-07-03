@@ -41,7 +41,12 @@ class EmbeddingService:
                     f"{self.embedding_endpoint}/api/embeddings",
                     json=payload,
                     headers=headers,
-                    timeout=aiohttp.ClientTimeout(total=60)  # 60 second timeout
+                    timeout=aiohttp.ClientTimeout(
+                        total=600,  # 10 minutes total timeout
+                        connect=30,  # 30 seconds to establish connection
+                        sock_read=300,  # 5 minutes to read response
+                        sock_connect=30  # 30 seconds for socket connection
+                    )
                 ) as response:
                     if response.status != 200:
                         error_text = await response.text()
@@ -104,7 +109,12 @@ class EmbeddingService:
                     f"{self.embedding_endpoint}/api/similarity",
                     json=payload,
                     headers=headers,
-                    timeout=aiohttp.ClientTimeout(total=30)
+                    timeout=aiohttp.ClientTimeout(
+                        total=120,  # 2 minutes for similarity computation
+                        connect=30,  # 30 seconds to establish connection
+                        sock_read=90,  # 90 seconds to read response
+                        sock_connect=30  # 30 seconds for socket connection
+                    )
                 ) as response:
                     if response.status != 200:
                         # Fallback to local computation if endpoint doesn't support similarity

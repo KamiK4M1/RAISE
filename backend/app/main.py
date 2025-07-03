@@ -190,4 +190,6 @@ if __name__ == "__main__":
         limit_concurrency=int(os.getenv("LIMIT_CONCURRENCY", 1000)),
         limit_max_requests=int(os.getenv("LIMIT_MAX_REQUESTS", 10000)),
         timeout_keep_alive=int(os.getenv("TIMEOUT_KEEP_ALIVE", 30)),
+        # File upload settings - support large files up to 100MB
+        h11_max_incomplete_event_size=100 * 1024 * 1024,  # 100MB
     )

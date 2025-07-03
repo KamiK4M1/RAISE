@@ -118,8 +118,21 @@ export default function GenerateFlashcardsPage() {
     if (generationType === "document") {
       router.push(`/flashcards/${selectedDocument}`)
     } else {
-      // For topic-based flashcards, go to general flashcards page
-      router.push('/flashcards')
+      // For topic-based flashcards, use the document_id from the API response
+      if (generatedFlashcards && generatedFlashcards.document_id) {
+        router.push(`/flashcards/${generatedFlashcards.document_id}`)
+      } else if (generatedFlashcards && generatedFlashcards.flashcards && generatedFlashcards.flashcards.length > 0) {
+        // Fallback to document_id from individual flashcard
+        const documentId = generatedFlashcards.flashcards[0]?.document_id
+        if (documentId) {
+          router.push(`/flashcards/${documentId}`)
+        } else {
+          router.push('/flashcards')
+        }
+      } else {
+        // Fallback to general flashcards page
+        router.push('/flashcards')
+      }
     }
   }
 
@@ -397,7 +410,7 @@ export default function GenerateFlashcardsPage() {
           <DialogHeader>
             <DialogTitle>สร้างแฟลชการ์ดสำเร็จ!</DialogTitle>
             <DialogDescription>
-              สร้างแฟลชการ์ดจำนวน {generatedFlashcards.length} ใบเรียบร้อยแล้ว พร้อมเริ่มทบทวนได้เลย
+              สร้างแฟลชการ์ดจำนวน {generatedFlashcards.flashcards?.length || generatedFlashcards.flashcards_generated || 0} ใบเรียบร้อยแล้ว พร้อมเริ่มทบทวนได้เลย
             </DialogDescription>
           </DialogHeader>
           <DialogFooter>

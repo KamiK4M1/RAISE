@@ -1,12 +1,13 @@
 import uuid
-from datetime import datetime, timedelta
+from datetime import datetime, timedelta, timezone
 from typing import List, Dict, Any, Optional
 import logging
 
 from app.database.mongodb import mongodb_manager
-from app.models.flashcard import Flashcard, ReviewSession, FlashcardStats
+from app.models.flashcard import Flashcard, ReviewSession, FlashcardStats, FlashcardResponse
 from app.services.document_processor import document_processor
 from app.services.spaced_repetition import get_spaced_repetition_service # Corrected import
+from app.services.rag_service import get_rag_service
 from app.core.ai_models import together_ai
 from app.core.exceptions import ModelError, DatabaseError
 
@@ -14,7 +15,7 @@ logger = logging.getLogger(__name__)
 
 # Helper function to get the flashcards collection
 async def get_flashcards_collection():
-    return mongodb_manager.get_collection("flashcards")
+    return mongodb_manager.get_flashcards_collection()
 
 class FlashcardGenerator:
     def __init__(self):
@@ -61,16 +62,17 @@ class FlashcardGenerator:
                 card_id = str(uuid.uuid4())
                 
                 flashcard = Flashcard(
-                    card_id=card_id,
+                    id=card_id,
+                    user_id=user_id,
                     document_id=document_id,
                     question=card_data.get("question", ""),
                     answer=card_data.get("answer", ""),
                     difficulty=card_data.get("difficulty", difficulty),
-                    ease_factor=spaced_repetition.default_ease_factor,
-                    interval=spaced_repetition.initial_interval,
-                    next_review=datetime.datetime.utcnow(),
-                    created_at=datetime.datetime.utcnow(),
-                    updated_at=datetime.datetime.utcnow()
+                    easeFactor=spaced_repetition.DEFAULT_EASE_FACTOR,
+                    interval=spaced_repetition.INITIAL_INTERVAL,
+                    nextReview=datetime.now(timezone.utc),
+                    createdAt=datetime.now(timezone.utc),
+                    updatedAt=datetime.now(timezone.utc)
                 )
                 
                 await collection.insert_one(flashcard.dict(by_alias=True, exclude={"id"}))
@@ -90,27 +92,90 @@ class FlashcardGenerator:
         count: int = 10,
         difficulty: str = "medium"
     ) -> List[Flashcard]:
-        """Generate flashcards from a topic without requiring a document"""
+        """Generate flashcards from a topic using RAG to find similar content from user's documents"""
         try:
             spaced_repetition = get_spaced_repetition_service()
             
-            logger.info(f"Generating {count} flashcards for topic: {topic}")
+            logger.info(f"Generating {count} flashcards for topic: {topic} using RAG")
             
-            # Create a prompt for the AI to generate flashcards about the topic
-            topic_prompt = f"""Create educational flashcards about the topic: {topic}
+            # Use RAG to find relevant content from user's documents
+            try:
+                rag_service = get_rag_service()
+                rag_result = await rag_service.search_and_generate(
+                    query=f"Find information about: {topic}",
+                    user_id=user_id,
+                    document_ids=None,  # Search across all user documents
+                    top_k=10,  # Get top 10 relevant chunks
+                    streaming=False
+                )
+                
+                if rag_result and rag_result.context and rag_result.context.context_text:
+                    # Use retrieved context to create more informed flashcards
+                    context_content = rag_result.context.context_text
+                    sources_info = ""
+                    if rag_result.context.sources:
+                        source_titles = [source.get('document_title', 'Unknown') for source in rag_result.context.sources[:3]]
+                        sources_info = f"\n\nBased on content from: {', '.join(source_titles)}"
+                    
+                    topic_prompt = f"""Create educational flashcards about the topic: {topic}
+
+Use the following relevant content from the user's documents to create accurate and contextual flashcards:
+
+RELEVANT CONTENT:
+{context_content}
+
+Generate {count} flashcards with questions and answers that:
+- Use specific information from the provided content
+- Cover key concepts and definitions found in the content
+- Include important facts and details mentioned
+- Provide practical applications where relevant
+- Use examples and illustrations from the content
+
+Ensure the flashcards are:
+- Clear and concise
+- Appropriate for {difficulty} difficulty level
+- Based on the actual content provided
+- Varied in question types (definitions, examples, applications, facts)
+- Accurately reflect the information in the source material{sources_info}
+"""
+                    
+                    logger.info(f"Using RAG context for topic '{topic}' with {len(rag_result.context.sources)} sources")
+                
+                else:
+                    # Fallback to general topic-based generation if no relevant content found
+                    logger.info(f"No relevant content found for topic '{topic}', using general generation")
+                    topic_prompt = f"""Create educational flashcards about the topic: {topic}
             
 Generate {count} flashcards with questions and answers that cover:
-            - Key concepts and definitions
-            - Important facts and information
-            - Practical applications
-            - Examples and illustrations
+- Key concepts and definitions
+- Important facts and information
+- Practical applications
+- Examples and illustrations
             
 Ensure the flashcards are:
-            - Clear and concise
-            - Appropriate for {difficulty} difficulty level
-            - Educational and informative
-            - Varied in question types (definitions, examples, applications)
-            """
+- Clear and concise
+- Appropriate for {difficulty} difficulty level
+- Educational and informative
+- Varied in question types (definitions, examples, applications)
+"""
+                    
+            except Exception as e:
+                logger.warning(f"RAG search failed for topic '{topic}': {e}, falling back to general generation")
+                # Fallback to general topic-based generation
+                topic_prompt = f"""Create educational flashcards about the topic: {topic}
+            
+Generate {count} flashcards with questions and answers that cover:
+- Key concepts and definitions
+- Important facts and information
+- Practical applications
+- Examples and illustrations
+            
+Ensure the flashcards are:
+- Clear and concise
+- Appropriate for {difficulty} difficulty level
+- Educational and informative
+- Varied in question types (definitions, examples, applications)
+"""
             
             flashcard_data = await together_ai.generate_flashcards_from_prompt(topic_prompt, count)
             
@@ -121,16 +186,17 @@ Ensure the flashcards are:
                 card_id = str(uuid.uuid4())
                 
                 flashcard = Flashcard(
-                    card_id=card_id,
+                    id=card_id,
+                    user_id=user_id,
                     document_id=f"topic_{topic.replace(' ', '_').lower()}",  # Create a pseudo document ID
                     question=card_data.get("question", ""),
                     answer=card_data.get("answer", ""),
                     difficulty=card_data.get("difficulty", difficulty),
-                    ease_factor=spaced_repetition.default_ease_factor,
-                    interval=spaced_repetition.initial_interval,
-                    next_review=datetime.datetime.utcnow(),
-                    created_at=datetime.datetime.utcnow(),
-                    updated_at=datetime.datetime.utcnow()
+                    easeFactor=spaced_repetition.DEFAULT_EASE_FACTOR,
+                    interval=spaced_repetition.INITIAL_INTERVAL,
+                    nextReview=datetime.now(timezone.utc),
+                    createdAt=datetime.now(timezone.utc),
+                    updatedAt=datetime.now(timezone.utc)
                 )
                 
                 # Add user_id to the flashcard document
@@ -159,16 +225,19 @@ Ensure the flashcards are:
             # FIX: Call the helper function to get the collection
             collection = await get_flashcards_collection()
             
-            now = datetime.datetime.utcnow()
+            now = datetime.now(timezone.utc)
             cursor = collection.find({
                 "document_id": document_id,
                 "user_id": user_id,
-                "next_review": {"$lte": now}
-            }).sort("next_review", 1).limit(session_size)
+                "nextReview": {"$lte": now}
+            }).sort("nextReview", 1).limit(session_size)
             
             cards = []
             async for card_data in cursor:
-                # FIX: Use the correct Flashcard model
+                # FIX: Map _id to id field for Pydantic model
+                if '_id' in card_data:
+                    card_data['id'] = str(card_data['_id'])
+                    del card_data['_id']
                 card = Flashcard(**card_data)
                 cards.append(card)
             
@@ -177,20 +246,44 @@ Ensure the flashcards are:
                 cursor = collection.find({
                     "document_id": document_id,
                     "user_id": user_id,
-                    "next_review": {"$gt": now}
-                }).sort("next_review", 1).limit(remaining)
+                    "nextReview": {"$gt": now}
+                }).sort("nextReview", 1).limit(remaining)
                 
                 async for card_data in cursor:
-                    # FIX: Use the correct Flashcard model
+                    # FIX: Map _id to id field for Pydantic model
+                    if '_id' in card_data:
+                        card_data['id'] = str(card_data['_id'])
+                        del card_data['_id']
                     card = Flashcard(**card_data)
                     cards.append(card)
             
             session_id = str(uuid.uuid4())
+            
+            # Convert Flashcard objects to FlashcardResponse objects
+            flashcard_responses = []
+            for card in cards:
+                flashcard_response = FlashcardResponse(
+                    id=card.id,
+                    user_id=card.user_id,
+                    document_id=card.document_id,
+                    question=card.question,
+                    answer=card.answer,
+                    difficulty=card.difficulty,
+                    easeFactor=card.easeFactor,
+                    interval=card.interval,
+                    nextReview=card.nextReview,
+                    reviewCount=card.reviewCount,
+                    correctCount=card.correctCount,
+                    incorrectCount=card.incorrectCount,
+                    createdAt=card.createdAt,
+                    updatedAt=card.updatedAt
+                )
+                flashcard_responses.append(flashcard_response)
+            
             session = ReviewSession(
                 session_id=session_id,
-                document_id=document_id,
-                cards=cards,
-                started_at=datetime.datetime.utcnow()
+                flashcards=flashcard_responses,
+                started_at=datetime.now(timezone.utc)
             )
             
             return session
@@ -215,6 +308,10 @@ Ensure the flashcards are:
             
             cards = []
             async for card_data in cursor:
+                # FIX: Map _id to id field for Pydantic model
+                if '_id' in card_data:
+                    card_data['id'] = str(card_data['_id'])
+                    del card_data['_id']
                 card = Flashcard(**card_data)
                 cards.append(card)
             
@@ -262,7 +359,7 @@ Ensure the flashcards are:
                 "review_count": new_review_count,
                 "correct_count": new_correct_count,
                 "incorrect_count": new_incorrect_count,
-                "updated_at": datetime.datetime.utcnow()
+                "updated_at": datetime.now(timezone.utc)
             }
             
             await collection.update_one(
@@ -298,7 +395,7 @@ Ensure the flashcards are:
         try:
             collection = await get_flashcards_collection()
             
-            start_date = datetime.datetime.utcnow().replace(hour=0, minute=0, second=0, microsecond=0)
+            start_date = datetime.now(timezone.utc).replace(hour=0, minute=0, second=0, microsecond=0)
             end_date = start_date + timedelta(days=days_ahead)
             
             cursor = collection.find({
@@ -356,7 +453,7 @@ Ensure the flashcards are:
             mastered = 0
             ease_factors = []
             
-            today = datetime.datetime.utcnow().date()
+            today = datetime.now(timezone.utc).date()
             
             async for card_data in cursor:
                 # FIX: Use the correct Flashcard model
@@ -408,13 +505,13 @@ Ensure the flashcards are:
                 {"card_id": card_id},
                 {
                     "$set": {
-                        "ease_factor": spaced_repetition.default_ease_factor,
-                        "interval": spaced_repetition.initial_interval,
-                        "next_review": datetime.datetime.utcnow(),
+                        "ease_factor": spaced_repetition.DEFAULT_EASE_FACTOR,
+                        "interval": spaced_repetition.INITIAL_INTERVAL,
+                        "next_review": datetime.now(timezone.utc),
                         "review_count": 0,
                         "correct_count": 0,
                         "incorrect_count": 0,
-                        "updated_at": datetime.datetime.utcnow()
+                        "updated_at": datetime.now(timezone.utc)
                     }
                 }
             )

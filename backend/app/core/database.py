@@ -28,7 +28,7 @@ class DatabaseManager:
                     settings.mongodb_uri,
                     maxPoolSize=50,
                     minPoolSize=5,
-                    maxIdleTimeMS=45000,
+                    maxIdleTimeMS=45000,       
                     serverSelectionTimeoutMS=5000,
                     connectTimeoutMS=10000,
                     socketTimeoutMS=20000,

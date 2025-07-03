@@ -1,13 +1,15 @@
-from fastapi import APIRouter, HTTPException, Depends, Form
+from fastapi import APIRouter, HTTPException, Depends
 from typing import Optional, List
 import logging
-from datetime import datetime
+from datetime import datetime, timezone
 
 from app.models.flashcard import (
     FlashcardGenerateRequest,
+    FlashcardTopicRequest,
     FlashcardAnswer,
     FlashcardResponse
 )
+from app.models.document import DocumentAPIResponse
 from app.services.flashcard_service import flashcard_service
 from app.services.flashcard_generator import flashcard_generator
 # FIX 1: Import the getter function instead of the class
@@ -18,7 +20,7 @@ logger = logging.getLogger(__name__)
 
 router = APIRouter()
 
-@router.post("/generate/{doc_id}", response_model=FlashcardResponse)
+@router.post("/generate/{doc_id}", response_model=DocumentAPIResponse)
 async def generate_flashcards(
     doc_id: str,
     request: FlashcardGenerateRequest = FlashcardGenerateRequest(),
@@ -34,14 +36,14 @@ async def generate_flashcards(
             topics=request.topics
         )
         
-        return FlashcardResponse(
+        return DocumentAPIResponse(
             success=True,
             data={
                 "document_id": doc_id,
                 "flashcards_generated": len(flashcards),
                 "flashcards": [
                     {
-                        "card_id": card.card_id,
+                        "card_id": card.id,
                         "question": card.question,
                         "answer": card.answer,
                         "difficulty": card.difficulty
@@ -50,37 +52,37 @@ async def generate_flashcards(
                 ]
             },
             message=f"สร้างบัตรคำศัพท์ {len(flashcards)} ใบสำเร็จ",
-            timestamp=datetime.datetime.utcnow().isoformat() + "Z"
+            timestamp=datetime.now(timezone.utc).isoformat() + "Z"
         )
         
     except Exception as e:
         logger.error(f"Error generating flashcards: {e}")
         raise HTTPException(status_code=400, detail=str(e))
 
-@router.post("/generate-from-topic", response_model=FlashcardResponse)
+@router.post("/generate-from-topic", response_model=DocumentAPIResponse)
 async def generate_flashcards_from_topic(
-    topic: str = Form(...),
-    count: int = Form(10),
-    difficulty: str = Form("medium"),
+    request: FlashcardTopicRequest,
     user_id: str = Depends(get_current_user_id)
 ):
     """Generate flashcards from topic"""
     try:
         flashcards = await flashcard_generator.generate_flashcards_from_topic(
-            topic=topic,
+            topic=request.topic,
             user_id=user_id,
-            count=count,
-            difficulty=difficulty
+            count=request.count,
+            difficulty=request.difficulty
         )
         
-        return FlashcardResponse(
+        return DocumentAPIResponse(
             success=True,
             data={
-                "topic": topic,
+                "topic": request.topic,
+                "document_id": flashcards[0].document_id if flashcards else None,
                 "flashcards_generated": len(flashcards),
                 "flashcards": [
                     {
-                        "card_id": card.card_id,
+                        "card_id": card.id,
+                        "document_id": card.document_id,
                         "question": card.question,
                         "answer": card.answer,
                         "difficulty": card.difficulty
@@ -88,15 +90,15 @@ async def generate_flashcards_from_topic(
                     for card in flashcards
                 ]
             },
-            message=f"สร้างบัตรคำศัพท์ {len(flashcards)} ใบจากหัวข้อ '{topic}' สำเร็จ",
-            timestamp=datetime.datetime.utcnow().isoformat() + "Z"
+            message=f"สร้างบัตรคำศัพท์ {len(flashcards)} ใบจากหัวข้อ '{request.topic}' สำเร็จ",
+            timestamp=datetime.now(timezone.utc).isoformat() + "Z"
         )
         
     except Exception as e:
         logger.error(f"Error generating flashcards from topic: {e}")
         raise HTTPException(status_code=400, detail=str(e))
 
-@router.get("/session/{doc_id}", response_model=FlashcardResponse)
+@router.get("/session/{doc_id}", response_model=DocumentAPIResponse)
 async def get_review_session(
     doc_id: str,
     session_size: int = 10,
@@ -111,39 +113,37 @@ async def get_review_session(
         )
         
         # FIX 2: Get an instance of the spaced repetition service
-        spaced_repetition = await get_spaced_repetition_service()
+        spaced_repetition = get_spaced_repetition_service()
         
-        return FlashcardResponse(
+        return DocumentAPIResponse(
             success=True,
             data={
                 "session_id": session.session_id,
-                "document_id": session.document_id,
-                "total_cards": len(session.cards),
-                "current_index": session.current_index,
+                "total_cards": len(session.flashcards),
                 "started_at": session.started_at,
                 "cards": [
                     {
-                        "card_id": card.card_id,
+                        "card_id": card.id,
                         "question": card.question,
                         "answer": card.answer,
                         "difficulty": card.difficulty,
-                        "review_count": card.review_count,
-                        "next_review": card.next_review,
+                        "review_count": card.reviewCount,
+                        "next_review": card.nextReview,
                         # This call will now work correctly
-                        "urgency": spaced_repetition.get_review_urgency(card.next_review)
+                        "urgency": spaced_repetition.get_review_urgency(card.nextReview)
                     }
-                    for card in session.cards
+                    for card in session.flashcards
                 ]
             },
-            message=f"เซสชันทบทวน {len(session.cards)} บัตรพร้อมแล้ว",
-            timestamp=datetime.datetime.utcnow().isoformat() + "Z"
+            message=f"เซสชันทบทวน {len(session.flashcards)} บัตรพร้อมแล้ว",
+            timestamp=datetime.now(timezone.utc).isoformat() + "Z"
         )
         
     except Exception as e:
         logger.error(f"Error getting review session: {e}")
         raise HTTPException(status_code=400, detail=str(e))
 
-@router.post("/answer", response_model=FlashcardResponse)
+@router.post("/answer", response_model=DocumentAPIResponse)
 async def submit_flashcard_answer(
     answer: FlashcardAnswer,
     user_id: str = Depends(get_current_user_id)
@@ -157,18 +157,18 @@ async def submit_flashcard_answer(
             user_answer=answer.user_answer
         )
         
-        return FlashcardResponse(
+        return DocumentAPIResponse(
             success=True,
             data=result,
             message="ประมวลผลคำตอบสำเร็จ",
-            timestamp=datetime.datetime.utcnow().isoformat() + "Z"
+            timestamp=datetime.now(timezone.utc).isoformat() + "Z"
         )
         
     except Exception as e:
         logger.error(f"Error processing flashcard answer: {e}")
         raise HTTPException(status_code=400, detail=str(e))
 
-@router.get("/review-schedule/{doc_id}", response_model=FlashcardResponse)
+@router.get("/review-schedule/{doc_id}", response_model=DocumentAPIResponse)
 async def get_review_schedule(
     doc_id: str,
     days_ahead: int = 7,
@@ -182,7 +182,7 @@ async def get_review_schedule(
             days_ahead=days_ahead
         )
         
-        return FlashcardResponse(
+        return DocumentAPIResponse(
             success=True,
             data={
                 "document_id": doc_id,
@@ -190,14 +190,14 @@ async def get_review_schedule(
                 "schedule": schedule
             },
             message="ดึงตารางทบทวนสำเร็จ",
-            timestamp=datetime.datetime.utcnow().isoformat() + "Z"
+            timestamp=datetime.now(timezone.utc).isoformat() + "Z"
         )
         
     except Exception as e:
         logger.error(f"Error getting review schedule: {e}")
         raise HTTPException(status_code=500, detail="เกิดข้อผิดพลาดในการดึงตารางทบทวน")
 
-@router.get("/stats/{doc_id}", response_model=FlashcardResponse)
+@router.get("/stats/{doc_id}", response_model=DocumentAPIResponse)
 async def get_flashcard_stats(
     doc_id: str,
     user_id: str = Depends(get_current_user_id)
@@ -209,21 +209,21 @@ async def get_flashcard_stats(
             user_id=user_id
         )
         
-        return FlashcardResponse(
+        return DocumentAPIResponse(
             success=True,
             data={
                 "document_id": doc_id,
                 "stats": stats.dict()
             },
             message="ดึงสถิติบัตรคำศัพท์สำเร็จ",
-            timestamp=datetime.datetime.utcnow().isoformat() + "Z"
+            timestamp=datetime.now(timezone.utc).isoformat() + "Z"
         )
         
     except Exception as e:
         logger.error(f"Error getting flashcard stats: {e}")
         raise HTTPException(status_code=500, detail="เกิดข้อผิดพลาดในการดึงสถิติ")
 
-@router.post("/{card_id}/reset", response_model=FlashcardResponse)
+@router.post("/{card_id}/reset", response_model=DocumentAPIResponse)
 async def reset_flashcard(
     card_id: str,
     user_id: str = Depends(get_current_user_id)
@@ -235,11 +235,11 @@ async def reset_flashcard(
         if not success:
             raise HTTPException(status_code=404, detail="ไม่พบบัตรคำศัพท์ที่ร้องขอ")
         
-        return FlashcardResponse(
+        return DocumentAPIResponse(
             success=True,
             data={"card_id": card_id},
             message="รีเซ็ตความคืบหน้าบัตรคำศัพท์สำเร็จ",
-            timestamp=datetime.datetime.utcnow().isoformat() + "Z"
+            timestamp=datetime.now(timezone.utc).isoformat() + "Z"
         )
         
     except HTTPException:
@@ -248,7 +248,7 @@ async def reset_flashcard(
         logger.error(f"Error resetting flashcard: {e}")
         raise HTTPException(status_code=500, detail="เกิดข้อผิดพลาดในการรีเซ็ตบัตรคำศัพท์")
 
-@router.delete("/{card_id}", response_model=FlashcardResponse)
+@router.delete("/{card_id}", response_model=DocumentAPIResponse)
 async def delete_flashcard(
     card_id: str,
     user_id: str = Depends(get_current_user_id)
@@ -260,11 +260,11 @@ async def delete_flashcard(
         if not success:
             raise HTTPException(status_code=404, detail="ไม่พบบัตรคำศัพท์ที่ร้องขอ")
         
-        return FlashcardResponse(
+        return DocumentAPIResponse(
             success=True,
             data={"card_id": card_id},
             message="ลบบัตรคำศัพท์สำเร็จ",
-            timestamp=datetime.datetime.utcnow().isoformat() + "Z"
+            timestamp=datetime.now(timezone.utc).isoformat() + "Z"
         )
         
     except HTTPException:
@@ -273,7 +273,7 @@ async def delete_flashcard(
         logger.error(f"Error deleting flashcard: {e}")
         raise HTTPException(status_code=500, detail="เกิดข้อผิดพลาดในการลบบัตรคำศัพท์")
 
-@router.post("/batch-answer", response_model=FlashcardResponse)
+@router.post("/batch-answer", response_model=DocumentAPIResponse)
 async def submit_batch_answers(
     answers: List[FlashcardAnswer],
     user_id: str = Depends(get_current_user_id)
@@ -291,21 +291,21 @@ async def submit_batch_answers(
             )
             results.append(result)
         
-        return FlashcardResponse(
+        return DocumentAPIResponse(
             success=True,
             data={
                 "total_processed": len(results),
                 "results": results
             },
             message=f"ประมวลผลคำตอบ {len(results)} ข้อสำเร็จ",
-            timestamp=datetime.datetime.utcnow().isoformat() + "Z"
+            timestamp=datetime.now(timezone.utc).isoformat() + "Z"
         )
         
     except Exception as e:
         logger.error(f"Error processing batch answers: {e}")
         raise HTTPException(status_code=400, detail=str(e))
 
-@router.get("/all", response_model=FlashcardResponse)
+@router.get("/all", response_model=DocumentAPIResponse)
 async def get_all_user_flashcards(
     skip: int = 0,
     limit: int = 50,
@@ -322,24 +322,24 @@ async def get_all_user_flashcards(
         flashcard_data = []
         for card in flashcards:
             flashcard_data.append({
-                "card_id": card.card_id,
+                "card_id": card.id,
                 "document_id": card.document_id,
                 "question": card.question,
                 "answer": card.answer,
                 "difficulty": card.difficulty,
-                "next_review": card.next_review,
-                "review_count": card.review_count,
-                "created_at": card.created_at
+                "next_review": card.nextReview,
+                "review_count": card.reviewCount,
+                "created_at": card.createdAt
             })
         
-        return FlashcardResponse(
+        return DocumentAPIResponse(
             success=True,
             data={
                 "flashcards": flashcard_data,
                 "total": len(flashcard_data)
             },
             message=f"ดึงแฟลชการ์ด {len(flashcard_data)} ใบสำเร็จ",
-            timestamp=datetime.datetime.utcnow().isoformat() + "Z"
+            timestamp=datetime.now(timezone.utc).isoformat() + "Z"
         )
         
     except Exception as e:

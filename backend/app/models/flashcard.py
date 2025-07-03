@@ -29,6 +29,12 @@ class FlashcardGenerateRequest(BaseModel):
     count: Optional[int] = 10
     difficulty: Optional[str] = "medium"
     topics: Optional[List[str]] = Field(default_factory=list)
+
+class FlashcardTopicRequest(BaseModel):
+    """Request for generating flashcards from a topic"""
+    topic: str = Field(..., description="Topic to generate flashcards for")
+    count: Optional[int] = 10
+    difficulty: Optional[str] = "medium"
     
 class FlashcardCreate(BaseModel):
     """Schema for creating a flashcard"""

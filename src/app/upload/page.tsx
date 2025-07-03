@@ -127,7 +127,7 @@ export default function UploadPage() {
           <Card>
             <CardHeader>
               <CardTitle>Select File</CardTitle>
-              <CardDescription>Supports PDF, DOCX, TXT. Max size 20MB.</CardDescription>
+              <CardDescription>Supports PDF, DOCX, TXT. Max size 25MB.</CardDescription>
             </CardHeader>
             <CardContent>
               <div

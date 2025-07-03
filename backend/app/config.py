@@ -39,7 +39,7 @@ class Settings(BaseSettings):
     hf_auth_token: Optional[str] = Field(default=None, env="HF_AUTH_TOKEN")
     
     # Model Settings
-    llm_model: str = "meta-llama/Meta-Llama-3.3-70B-Instruct-Turbo"
+    llm_model: str = "meta-llama/Llama-3.3-70B-Instruct-Turbo-Free"
     embedding_model: str = "BAAI/bge-m3"
     max_tokens: int = 2048
     temperature: float = 0.7
@@ -50,7 +50,7 @@ class Settings(BaseSettings):
     access_token_expire_minutes: int = Field(default=1440, env="ACCESS_TOKEN_EXPIRE_MINUTES")  # 24 hours
     
     # File Upload Settings
-    max_file_size: int = Field(default=20 * 1024 * 1024, env="MAX_FILE_SIZE")  # 20MB
+    max_file_size: int = Field(default=100 * 1024 * 1024, env="MAX_FILE_SIZE")  # 100MB
     allowed_file_types: List[str] = ["pdf", "docx", "txt"]
     upload_dir: str = Field(default="uploads", env="UPLOAD_DIR")
     
