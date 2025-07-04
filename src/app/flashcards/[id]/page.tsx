@@ -51,14 +51,19 @@ export default function FlashcardPage() {
       setLoading(true)
       setError(null)
       
+      // Decode URL-encoded Thai characters
+      const decodedId = decodeURIComponent(id)
+      
       // Load flashcards for this document/topic and document info
       const [flashcardsResponse, docResponse] = await Promise.all([
-        apiService.getFlashcardsByDocument(id, 0, 100),
-        apiService.getDocument(id).catch(() => ({ success: false })) // Don't fail if document doesn't exist (for topics)
+        apiService.getFlashcardsByDocument(decodedId, 0, 100),
+        apiService.getDocument(decodedId).catch(() => ({ success: false })) // Don't fail if document doesn't exist (for topics)
       ])
 
       if (flashcardsResponse.success && flashcardsResponse.data) {
-        setFlashcards(flashcardsResponse.data.flashcards || [])
+        const flashcards = flashcardsResponse.data.flashcards || []
+        setFlashcards(flashcards)
+        
         if (docResponse.success && docResponse.data) {
           setDocumentInfo(docResponse.data)
         } else {
@@ -70,6 +75,8 @@ export default function FlashcardPage() {
             filename: isTopicBased ? `${id.replace('topic_', '').replace(/_/g, ' ')}.topic` : 'Unknown'
           })
         }
+        
+        // Don't show error if flashcards array is empty - that's normal
       } else {
         setError("ไม่พบแฟลชการ์ดสำหรับเอกสาร/หัวข้อนี้")
       }
@@ -81,16 +88,12 @@ export default function FlashcardPage() {
   }
 
   const startStudySession = () => {
-    // Filter cards that are due
-    const dueCards = flashcards.filter(card => card.is_due)
-    const studyCards = dueCards.length > 0 ? dueCards : flashcards.slice(0, 10)
-    
-    if (studyCards.length === 0) {
-      alert("ไม่มีแฟลชการ์ดให้ทบทวน")
+    if (flashcards.length === 0) {
+      alert("ไม่มีแฟลชการ์ดในเอกสารนี้")
       return
     }
     
-    // Start study mode with first card
+    // Always allow studying all flashcards repeatedly
     setCurrentCardIndex(0)
     setIsFlipped(false)
     setActiveTab("study")

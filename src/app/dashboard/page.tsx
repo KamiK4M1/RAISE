@@ -292,25 +292,44 @@ export default function DashboardPage() {
                     </Card>
                   </Link>
 
-                  <Link href="/flashcards/library">
-                    <Card className="border border-gray-200 hover:border-purple-300 hover:shadow-md transition-all cursor-pointer">
-                      <CardContent className="p-4 sm:p-6 text-center">
-                        <Brain className="h-8 w-8 sm:h-12 sm:w-12 text-purple-600 mx-auto mb-3 sm:mb-4" />
-                        <h3 className="font-semibold mb-2 text-sm sm:text-base">คลังแฟลชการ์ด</h3>
-                        <p className="text-xs sm:text-sm text-gray-600">ดูและทบทวนแฟลชการ์ดทั้งหมด</p>
-                      </CardContent>
-                    </Card>
-                  </Link>
-
-                  <Link href="/flashcards/generate">
-                    <Card className="border border-gray-200 hover:border-indigo-300 hover:shadow-md transition-all cursor-pointer">
-                      <CardContent className="p-4 sm:p-6 text-center">
-                        <Zap className="h-8 w-8 sm:h-12 sm:w-12 text-indigo-600 mx-auto mb-3 sm:mb-4" />
-                        <h3 className="font-semibold mb-2 text-sm sm:text-base">สร้างแฟลชการ์ด</h3>
-                        <p className="text-xs sm:text-sm text-gray-600">สร้างแฟลชการ์ดอัจฉริยะใหม่</p>
-                      </CardContent>
-                    </Card>
-                  </Link>
+                  <Card className="border border-gray-200 hover:border-purple-300 hover:shadow-md transition-all cursor-pointer bg-gradient-to-br from-purple-50 to-indigo-50 lg:col-span-2">
+                    <CardContent className="p-4 sm:p-6">
+                      <div className="flex items-center justify-between mb-4">
+                        <div className="flex items-center space-x-3">
+                          <div className="p-2 bg-purple-600 rounded-lg">
+                            <Brain className="h-6 w-6 text-white" />
+                          </div>
+                          <div>
+                            <h3 className="font-semibold text-lg text-gray-900">แฟลชการ์ด</h3>
+                            <p className="text-sm text-gray-600">ทบทวนและสร้างแฟลชการ์ดอัจฉริยะ</p>
+                          </div>
+                        </div>
+                        <div className="text-right">
+                          <p className="text-2xl font-bold text-purple-600">{stats.flashcardsStudied}</p>
+                          <p className="text-xs text-gray-500">ทบทวนแล้ว</p>
+                        </div>
+                      </div>
+                      <div className="grid grid-cols-2 gap-3">
+                        <Link href="/flashcards/library">
+                          <Button 
+                            className="w-full bg-white border border-purple-200 text-purple-700 hover:bg-purple-50 hover:border-purple-300 transition-colors"
+                            variant="outline"
+                          >
+                            <BookOpen className="h-4 w-4 mr-2" />
+                            ดูแฟลชการ์ด
+                          </Button>
+                        </Link>
+                        <Link href="/flashcards/generate">
+                          <Button 
+                            className="w-full bg-purple-600 text-white hover:bg-purple-700 transition-colors"
+                          >
+                            <Zap className="h-4 w-4 mr-2" />
+                            สร้างชุดใหม่
+                          </Button>
+                        </Link>
+                      </div>
+                    </CardContent>
+                  </Card>
 
                   <Link href="/quiz">
                     <Card className="border border-gray-200 hover:border-green-300 hover:shadow-md transition-all cursor-pointer">
