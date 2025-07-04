@@ -101,21 +101,27 @@ class FlashcardGenerator:
             # Use RAG to find relevant content from user's documents
             try:
                 rag_service = get_rag_service()
-                rag_result = await rag_service.search_and_generate(
+                
+                # Use the new MongoDBRAG service to search for relevant content
+                search_results = await rag_service.vector_search(
                     query=f"Find information about: {topic}",
-                    user_id=user_id,
-                    document_ids=None,  # Search across all user documents
-                    top_k=10,  # Get top 10 relevant chunks
-                    streaming=False
+                    top_k=5  # Reduced from 10 to 5 to limit context size
                 )
                 
-                if rag_result and rag_result.context and rag_result.context.context_text:
-                    # Use retrieved context to create more informed flashcards
-                    context_content = rag_result.context.context_text
-                    sources_info = ""
-                    if rag_result.context.sources:
-                        source_titles = [source.get('document_title', 'Unknown') for source in rag_result.context.sources[:3]]
-                        sources_info = f"\n\nBased on content from: {', '.join(source_titles)}"
+                if search_results:
+                    # Get context from the search results (limited)
+                    context_content = await rag_service.retrieve_context(
+                        query=f"Find information about: {topic}",
+                        top_k=5  # Reduced from 10 to 5
+                    )
+                    
+                    # Limit context length to prevent token overflow
+                    max_context_length = 3000  # Limit to ~3000 characters
+                    if len(context_content) > max_context_length:
+                        context_content = context_content[:max_context_length] + "..."
+                        logger.info(f"Context truncated to {max_context_length} characters to fit token limits")
+                    
+                    sources_info = f"\n\nBased on {len(search_results)} relevant document chunks"
                     
                     topic_prompt = f"""Create educational flashcards about the topic: {topic}
 
@@ -139,7 +145,7 @@ Ensure the flashcards are:
 - Accurately reflect the information in the source material{sources_info}
 """
                     
-                    logger.info(f"Using RAG context for topic '{topic}' with {len(rag_result.context.sources)} sources")
+                    logger.info(f"Using RAG context for topic '{topic}' with {len(search_results)} sources")
                 
                 else:
                     # Fallback to general topic-based generation if no relevant content found
@@ -533,6 +539,133 @@ Ensure the flashcards are:
         except Exception as e:
             logger.error(f"Error deleting flashcard: {e}")
             return False
+
+    async def get_user_flashcards(
+        self,
+        user_id: str,
+        skip: int = 0,
+        limit: int = 50
+    ) -> List[Flashcard]:
+        """Get all flashcards for a user with pagination"""
+        try:
+            collection = await get_flashcards_collection()
+            
+            cursor = collection.find({
+                "user_id": user_id
+            }).sort("createdAt", -1).skip(skip).limit(limit)
+            
+            flashcards = []
+            async for card_data in cursor:
+                if '_id' in card_data:
+                    card_data['id'] = str(card_data['_id'])
+                    del card_data['_id']
+                flashcards.append(Flashcard(**card_data))
+            
+            return flashcards
+            
+        except Exception as e:
+            logger.error(f"Error getting user flashcards: {e}")
+            return []
+
+    async def get_flashcards_by_document(
+        self,
+        document_id: str,
+        user_id: str,
+        skip: int = 0,
+        limit: int = 50
+    ) -> List[Flashcard]:
+        """Get flashcards for a specific document or topic"""
+        try:
+            collection = await get_flashcards_collection()
+            
+            cursor = collection.find({
+                "document_id": document_id,
+                "user_id": user_id
+            }).sort("createdAt", -1).skip(skip).limit(limit)
+            
+            flashcards = []
+            async for card_data in cursor:
+                if '_id' in card_data:
+                    card_data['id'] = str(card_data['_id'])
+                    del card_data['_id']
+                flashcards.append(Flashcard(**card_data))
+            
+            return flashcards
+            
+        except Exception as e:
+            logger.error(f"Error getting flashcards by document: {e}")
+            return []
+
+    async def get_due_flashcards(
+        self,
+        user_id: str,
+        limit: int = 20
+    ) -> List[Flashcard]:
+        """Get flashcards that are due for review"""
+        try:
+            collection = await get_flashcards_collection()
+            now = datetime.now(timezone.utc)
+            
+            cursor = collection.find({
+                "user_id": user_id,
+                "nextReview": {"$lte": now}
+            }).sort("nextReview", 1).limit(limit)
+            
+            flashcards = []
+            async for card_data in cursor:
+                if '_id' in card_data:
+                    card_data['id'] = str(card_data['_id'])
+                    del card_data['_id']
+                flashcards.append(Flashcard(**card_data))
+            
+            return flashcards
+            
+        except Exception as e:
+            logger.error(f"Error getting due flashcards: {e}")
+            return []
+
+    async def get_user_topics(self, user_id: str) -> List[Dict[str, Any]]:
+        """Get all topics that have flashcards for a user"""
+        try:
+            collection = await get_flashcards_collection()
+            now = datetime.now(timezone.utc)
+            
+            # Aggregate to group by document_id and get counts
+            pipeline = [
+                {"$match": {"user_id": user_id}},
+                {
+                    "$group": {
+                        "_id": "$document_id",
+                        "count": {"$sum": 1},
+                        "due_count": {
+                            "$sum": {
+                                "$cond": [
+                                    {"$lte": ["$nextReview", now]},
+                                    1,
+                                    0
+                                ]
+                            }
+                        },
+                        "last_reviewed": {"$max": "$updatedAt"}
+                    }
+                },
+                {"$sort": {"last_reviewed": -1}}
+            ]
+            
+            topics = []
+            async for result in collection.aggregate(pipeline):
+                topics.append({
+                    "document_id": result["_id"],
+                    "count": result["count"],
+                    "due_count": result["due_count"],
+                    "last_reviewed": result.get("last_reviewed")
+                })
+            
+            return topics
+            
+        except Exception as e:
+            logger.error(f"Error getting user topics: {e}")
+            return []
 
 # Global instance
 flashcard_generator = FlashcardGenerator()

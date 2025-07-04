@@ -4,7 +4,7 @@ import { useState, useEffect } from "react"
 import { Button } from "../../components/ui/button"
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card"
 import { Progress } from "@/components/ui/progress"
-import { Brain, ArrowLeft, RotateCcw, Eye, EyeOff, CheckCircle, XCircle, Clock } from "lucide-react"
+import { Brain, ArrowLeft, RotateCcw, Eye, EyeOff, CheckCircle, XCircle, Clock, BookOpen } from "lucide-react"
 import Link from "next/link"
 import { apiService } from "@/lib/api"
 import { Flashcard, FlashcardSession } from "@/types/api"
@@ -263,14 +263,22 @@ export default function FlashcardsPage() {
               <span className="text-2xl font-bold text-gray-900">AI Learning</span>
             </div>
           </div>
-          <Button
-            variant="outline"
-            onClick={resetSession}
-            className="bg-white text-gray-700 border-gray-300 hover:bg-gray-50"
-          >
-            <RotateCcw className="h-4 w-4 mr-2" />
-            เริ่มใหม่
-          </Button>
+          <div className="flex items-center space-x-2">
+            <Link href="/flashcards/library">
+              <Button variant="outline" className="bg-white text-gray-700 border-gray-300 hover:bg-gray-50">
+                <BookOpen className="h-4 w-4 mr-2" />
+                คลังแฟลชการ์ด
+              </Button>
+            </Link>
+            <Button
+              variant="outline"
+              onClick={resetSession}
+              className="bg-white text-gray-700 border-gray-300 hover:bg-gray-50"
+            >
+              <RotateCcw className="h-4 w-4 mr-2" />
+              เริ่มใหม่
+            </Button>
+          </div>
         </div>
       </nav>
 

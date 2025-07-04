@@ -320,6 +320,8 @@ async def get_all_user_flashcards(
         )
         
         flashcard_data = []
+        spaced_repetition = get_spaced_repetition_service()
+        
         for card in flashcards:
             flashcard_data.append({
                 "card_id": card.id,
@@ -329,14 +331,20 @@ async def get_all_user_flashcards(
                 "difficulty": card.difficulty,
                 "next_review": card.nextReview,
                 "review_count": card.reviewCount,
-                "created_at": card.createdAt
+                "created_at": card.createdAt,
+                "ease_factor": card.easeFactor,
+                "interval": card.interval,
+                "urgency": spaced_repetition.get_review_urgency(card.nextReview),
+                "is_due": card.nextReview <= datetime.now(timezone.utc)
             })
         
         return DocumentAPIResponse(
             success=True,
             data={
                 "flashcards": flashcard_data,
-                "total": len(flashcard_data)
+                "total": len(flashcard_data),
+                "skip": skip,
+                "limit": limit
             },
             message=f"ดึงแฟลชการ์ด {len(flashcard_data)} ใบสำเร็จ",
             timestamp=datetime.now(timezone.utc).isoformat() + "Z"
@@ -345,3 +353,143 @@ async def get_all_user_flashcards(
     except Exception as e:
         logger.error(f"Error getting user flashcards: {e}")
         raise HTTPException(status_code=500, detail="Error retrieving flashcards")
+
+@router.get("/by-document/{doc_id}", response_model=DocumentAPIResponse)
+async def get_flashcards_by_document(
+    doc_id: str,
+    skip: int = 0,
+    limit: int = 50,
+    user_id: str = Depends(get_current_user_id)
+):
+    """Get all flashcards for a specific document or topic"""
+    try:
+        flashcards = await flashcard_generator.get_flashcards_by_document(
+            document_id=doc_id,
+            user_id=user_id,
+            skip=skip,
+            limit=limit
+        )
+        
+        flashcard_data = []
+        spaced_repetition = get_spaced_repetition_service()
+        
+        for card in flashcards:
+            flashcard_data.append({
+                "card_id": card.id,
+                "document_id": card.document_id,
+                "question": card.question,
+                "answer": card.answer,
+                "difficulty": card.difficulty,
+                "next_review": card.nextReview,
+                "review_count": card.reviewCount,
+                "created_at": card.createdAt,
+                "ease_factor": card.easeFactor,
+                "interval": card.interval,
+                "urgency": spaced_repetition.get_review_urgency(card.nextReview),
+                "is_due": card.nextReview <= datetime.now(timezone.utc)
+            })
+        
+        # Determine if this is a topic-based collection
+        is_topic = doc_id.startswith("topic_")
+        source_name = doc_id.replace("topic_", "").replace("_", " ") if is_topic else doc_id
+        
+        return DocumentAPIResponse(
+            success=True,
+            data={
+                "document_id": doc_id,
+                "is_topic": is_topic,
+                "source_name": source_name,
+                "flashcards": flashcard_data,
+                "total": len(flashcard_data),
+                "skip": skip,
+                "limit": limit,
+                "due_count": sum(1 for card in flashcard_data if card["is_due"])
+            },
+            message=f"ดึงแฟลชการ์ด {len(flashcard_data)} ใบจาก{source_name}สำเร็จ",
+            timestamp=datetime.now(timezone.utc).isoformat() + "Z"
+        )
+        
+    except Exception as e:
+        logger.error(f"Error getting flashcards by document: {e}")
+        raise HTTPException(status_code=500, detail="Error retrieving flashcards")
+
+@router.get("/due", response_model=DocumentAPIResponse)
+async def get_due_flashcards(
+    limit: int = 20,
+    user_id: str = Depends(get_current_user_id)
+):
+    """Get flashcards that are due for review"""
+    try:
+        flashcards = await flashcard_generator.get_due_flashcards(
+            user_id=user_id,
+            limit=limit
+        )
+        
+        flashcard_data = []
+        spaced_repetition = get_spaced_repetition_service()
+        
+        for card in flashcards:
+            flashcard_data.append({
+                "card_id": card.id,
+                "document_id": card.document_id,
+                "question": card.question,
+                "answer": card.answer,
+                "difficulty": card.difficulty,
+                "next_review": card.nextReview,
+                "review_count": card.reviewCount,
+                "created_at": card.createdAt,
+                "ease_factor": card.easeFactor,
+                "interval": card.interval,
+                "urgency": spaced_repetition.get_review_urgency(card.nextReview),
+                "overdue_hours": max(0, (datetime.now(timezone.utc) - card.nextReview).total_seconds() / 3600)
+            })
+        
+        return DocumentAPIResponse(
+            success=True,
+            data={
+                "flashcards": flashcard_data,
+                "total_due": len(flashcard_data),
+                "limit": limit
+            },
+            message=f"พบแฟลชการ์ดที่ถึงเวลาทบทวน {len(flashcard_data)} ใบ",
+            timestamp=datetime.now(timezone.utc).isoformat() + "Z"
+        )
+        
+    except Exception as e:
+        logger.error(f"Error getting due flashcards: {e}")
+        raise HTTPException(status_code=500, detail="Error retrieving due flashcards")
+
+@router.get("/topics", response_model=DocumentAPIResponse)
+async def get_flashcard_topics(
+    user_id: str = Depends(get_current_user_id)
+):
+    """Get all topics that have flashcards"""
+    try:
+        topics = await flashcard_generator.get_user_topics(user_id=user_id)
+        
+        topic_data = []
+        for topic_info in topics:
+            doc_id = topic_info.get("document_id", "")
+            if doc_id.startswith("topic_"):
+                topic_name = doc_id.replace("topic_", "").replace("_", " ")
+                topic_data.append({
+                    "document_id": doc_id,
+                    "topic_name": topic_name,
+                    "flashcard_count": topic_info.get("count", 0),
+                    "last_reviewed": topic_info.get("last_reviewed"),
+                    "due_count": topic_info.get("due_count", 0)
+                })
+        
+        return DocumentAPIResponse(
+            success=True,
+            data={
+                "topics": topic_data,
+                "total_topics": len(topic_data)
+            },
+            message=f"พบหัวข้อ {len(topic_data)} หัวข้อที่มีแฟลชการ์ด",
+            timestamp=datetime.now(timezone.utc).isoformat() + "Z"
+        )
+        
+    except Exception as e:
+        logger.error(f"Error getting flashcard topics: {e}")
+        raise HTTPException(status_code=500, detail="Error retrieving topics")

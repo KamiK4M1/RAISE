@@ -281,7 +281,7 @@ export default function DashboardPage() {
                 <CardDescription className="text-sm">เลือกเครื่องมือที่ต้องการใช้งาน</CardDescription>
               </CardHeader>
               <CardContent className="pt-0">
-                <div className="grid sm:grid-cols-2 gap-3 sm:gap-4">
+                <div className="grid sm:grid-cols-2 lg:grid-cols-3 gap-3 sm:gap-4">
                   <Link href="/upload">
                     <Card className="border border-gray-200 hover:border-blue-300 hover:shadow-md transition-all cursor-pointer">
                       <CardContent className="p-4 sm:p-6 text-center">
@@ -292,12 +292,22 @@ export default function DashboardPage() {
                     </Card>
                   </Link>
 
-                  <Link href="/flashcards/generate">
+                  <Link href="/flashcards/library">
                     <Card className="border border-gray-200 hover:border-purple-300 hover:shadow-md transition-all cursor-pointer">
                       <CardContent className="p-4 sm:p-6 text-center">
-                        <Zap className="h-8 w-8 sm:h-12 sm:w-12 text-purple-600 mx-auto mb-3 sm:mb-4" />
-                        <h3 className="font-semibold mb-2 text-sm sm:text-base">แฟลชการ์ด</h3>
-                        <p className="text-xs sm:text-sm text-gray-600">สร้างและทบทวนแฟลชการ์ดอัจฉริยะ</p>
+                        <Brain className="h-8 w-8 sm:h-12 sm:w-12 text-purple-600 mx-auto mb-3 sm:mb-4" />
+                        <h3 className="font-semibold mb-2 text-sm sm:text-base">คลังแฟลชการ์ด</h3>
+                        <p className="text-xs sm:text-sm text-gray-600">ดูและทบทวนแฟลชการ์ดทั้งหมด</p>
+                      </CardContent>
+                    </Card>
+                  </Link>
+
+                  <Link href="/flashcards/generate">
+                    <Card className="border border-gray-200 hover:border-indigo-300 hover:shadow-md transition-all cursor-pointer">
+                      <CardContent className="p-4 sm:p-6 text-center">
+                        <Zap className="h-8 w-8 sm:h-12 sm:w-12 text-indigo-600 mx-auto mb-3 sm:mb-4" />
+                        <h3 className="font-semibold mb-2 text-sm sm:text-base">สร้างแฟลชการ์ด</h3>
+                        <p className="text-xs sm:text-sm text-gray-600">สร้างแฟลชการ์ดอัจฉริยะใหม่</p>
                       </CardContent>
                     </Card>
                   </Link>
@@ -318,6 +328,16 @@ export default function DashboardPage() {
                         <MessageSquare className="h-8 w-8 sm:h-12 sm:w-12 text-orange-600 mx-auto mb-3 sm:mb-4" />
                         <h3 className="font-semibold mb-2 text-sm sm:text-base">ถาม AI</h3>
                         <p className="text-xs sm:text-sm text-gray-600">สอบถามคำถามเกี่ยวกับเนื้อหา</p>
+                      </CardContent>
+                    </Card>
+                  </Link>
+
+                  <Link href="/reports">
+                    <Card className="border border-gray-200 hover:border-pink-300 hover:shadow-md transition-all cursor-pointer">
+                      <CardContent className="p-4 sm:p-6 text-center">
+                        <BarChart3 className="h-8 w-8 sm:h-12 sm:w-12 text-pink-600 mx-auto mb-3 sm:mb-4" />
+                        <h3 className="font-semibold mb-2 text-sm sm:text-base">รายงาน</h3>
+                        <p className="text-xs sm:text-sm text-gray-600">ดูสถิติและความคืบหน้า</p>
                       </CardContent>
                     </Card>
                   </Link>

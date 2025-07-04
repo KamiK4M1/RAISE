@@ -97,6 +97,32 @@ async def get_document(
 ):
     """Get document details"""
     try:
+        # Handle topic-based pseudo documents
+        if doc_id.startswith("topic_"):
+            topic_name = doc_id.replace("topic_", "").replace("_", " ")
+            # Return a mock document response for topic-based flashcards
+            document_data = {
+                "document_id": doc_id,
+                "filename": f"{topic_name}.topic",
+                "file_type": "topic",
+                "file_size": 0,
+                "processing_status": "completed",
+                "processed_at": datetime.now(timezone.utc).isoformat() + "Z",
+                "created_at": datetime.now(timezone.utc).isoformat() + "Z",
+                "chunk_count": 0,
+                "error_message": None,
+                "is_topic_based": True,
+                "topic_name": topic_name
+            }
+            
+            return DocumentAPIResponse(
+                success=True,
+                data=document_data,
+                message="ดึงข้อมูลหัวข้อสำเร็จ",
+                timestamp=datetime.now(timezone.utc).isoformat() + "Z"
+            )
+        
+        # Handle regular documents
         document = await document_processor.get_document(doc_id, user_id)
         
         if not document:
@@ -112,7 +138,8 @@ async def get_document(
             "processed_at": document.updatedAt,
             "created_at": document.createdAt,
             "chunk_count": len(getattr(document, 'chunks', [])),
-            "error_message": document.errorMessage
+            "error_message": document.errorMessage,
+            "is_topic_based": False
         }
         
         return DocumentAPIResponse(

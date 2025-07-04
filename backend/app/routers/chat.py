@@ -6,7 +6,7 @@ import logging
 import json
 from datetime import datetime
 
-from app.services.rag_service import RAGService, get_rag_service
+from app.services.rag_service import MongoDBRAG, get_rag_service
 from app.core.exceptions import RAGError
 
 logger = logging.getLogger(__name__)
@@ -37,34 +37,41 @@ async def get_current_user_id() -> str:
 async def ask_question(
     request: ChatRequest,
     user_id: str = Depends(get_current_user_id),
-    rag_service: RAGService = Depends(get_rag_service)
+    rag_service: MongoDBRAG = Depends(get_rag_service)
 ):
     """Ask a question using RAG across documents"""
     try:
-        # Use RAG service to search and generate answer
-        rag_response = await rag_service.search_and_generate(
+        # Use new MongoDB RAG service
+        results = await rag_service.vector_search(
             query=request.question,
-            user_id=user_id,
-            document_ids=request.document_ids,
             top_k=request.top_k,
-            streaming=request.streaming
+            document_id=request.document_ids[0] if request.document_ids else None
         )
-
+        
+        # Get context for the question
+        context = await rag_service.retrieve_context(
+            query=request.question,
+            top_k=request.top_k,
+            document_id=request.document_ids[0] if request.document_ids else None
+        )
+        
+        # For now, return the context as the answer since LLM generation is not implemented
+        answer = context if context else "ไม่พบข้อมูลที่เกี่ยวข้องกับคำถามของคุณ"
         
         return ChatResponse(
             success=True,
             data={
                 "question": request.question,
-                "answer": rag_response.answer,
-                "confidence_score": rag_response.confidence_score,
-                "response_time": rag_response.response_time,
-                "sources": rag_response.context.sources,
-                "sources_count": rag_response.sources_count,
-                "total_chunks_found": rag_response.context.total_chunks,
-                "avg_similarity": rag_response.context.avg_similarity
+                "answer": answer,
+                "confidence_score": results[0].get('score', 0) if results else 0,
+                "response_time": 0.0,
+                "sources": [{"text": r.get('text', ''), "score": r.get('score', 0)} for r in results],
+                "sources_count": len(results),
+                "total_chunks_found": len(results),
+                "avg_similarity": sum(r.get('score', 0) for r in results) / len(results) if results else 0
             },
             message="ตอบคำถามสำเร็จ",
-            timestamp=datetime.datetime.utcnow().isoformat() + "Z"
+            timestamp=datetime.utcnow().isoformat() + "Z"
         )
         
     except RAGError as e:
@@ -78,15 +85,14 @@ async def ask_question(
 async def search_documents(
     request: SearchRequest,
     user_id: str = Depends(get_current_user_id),
-    rag_service: RAGService = Depends(get_rag_service)
+    rag_service: MongoDBRAG = Depends(get_rag_service)
 ):
     """Search documents without generating answers"""
     try:
-        results = await rag_service.search_documents_only(
+        results = await rag_service.vector_search(
             query=request.query,
-            user_id=user_id,
-            document_ids=request.document_ids,
-            top_k=request.top_k
+            top_k=request.top_k,
+            document_id=request.document_ids[0] if request.document_ids else None
         )
         
         return ChatResponse(
@@ -97,7 +103,7 @@ async def search_documents(
                 "results": results
             },
             message=f"พบผลการค้นหา {len(results)} รายการ",
-            timestamp=datetime.datetime.utcnow().isoformat() + "Z"
+            timestamp=datetime.utcnow().isoformat() + "Z"
         )
         
     except RAGError as e:
@@ -111,39 +117,43 @@ async def search_documents(
 async def ask_question_stream(
     request: ChatRequest,
     user_id: str = Depends(get_current_user_id),
-    rag_service: RAGService = Depends(get_rag_service)
+    rag_service: MongoDBRAG = Depends(get_rag_service)
 ):
     """Ask a question with streaming response"""
     try:
         async def generate_streaming_response():
             try:
-                # Generate streaming response from RAG service
-                rag_response = await rag_service.search_and_generate(
+                # Generate response from MongoDB RAG service
+                results = await rag_service.vector_search(
                     query=request.question,
-                    user_id=user_id,
-                    document_ids=request.document_ids,
                     top_k=request.top_k,
-                    streaming=True
+                    document_id=request.document_ids[0] if request.document_ids else None
+                )
+                
+                context = await rag_service.retrieve_context(
+                    query=request.question,
+                    top_k=request.top_k,
+                    document_id=request.document_ids[0] if request.document_ids else None
                 )
                 
                 # Send metadata first
                 metadata = {
                     "type": "metadata",
-                    "confidence_score": rag_response.confidence_score,
-                    "sources_count": rag_response.sources_count,
-                    "response_time": rag_response.response_time
+                    "confidence_score": results[0].get('score', 0) if results else 0,
+                    "sources_count": len(results),
+                    "response_time": 0.0
                 }
                 yield f"data: {json.dumps(metadata)}\n\n"
                 
                 # Send sources
                 sources_data = {
                     "type": "sources",
-                    "sources": rag_response.context.sources
+                    "sources": [{"text": r.get('text', ''), "score": r.get('score', 0)} for r in results]
                 }
                 yield f"data: {json.dumps(sources_data)}\n\n"
                 
                 # Stream answer in chunks
-                answer = rag_response.answer
+                answer = context if context else "ไม่พบข้อมูลที่เกี่ยวข้องกับคำถามของคุณ"
                 chunk_size = 50
                 
                 for i in range(0, len(answer), chunk_size):
@@ -194,15 +204,18 @@ async def get_similar_questions(
     query: str,
     limit: int = 5,
     user_id: str = Depends(get_current_user_id),
-    rag_service: RAGService = Depends(get_rag_service)
+    rag_service: MongoDBRAG = Depends(get_rag_service)
 ):
     """Get similar questions for suggestion"""
     try:
-        similar_questions = await rag_service.get_similar_questions(
-            query=query,
-            user_id=user_id,
-            limit=limit
-        )
+        # Simple implementation for similar questions
+        similar_questions = [
+            f"อธิบายเกี่ยวกับ {query}",
+            f"{query} คืออะไร",
+            f"ยกตัวอย่าง {query}",
+            f"วิธีการ {query}",
+            f"ขั้นตอนของ {query}"
+        ][:limit]
         
         return ChatResponse(
             success=True,
@@ -211,7 +224,7 @@ async def get_similar_questions(
                 "similar_questions": similar_questions
             },
             message=f"พบคำถามที่คล้ายกัน {len(similar_questions)} รายการ",
-            timestamp=datetime.datetime.utcnow().isoformat() + "Z"
+            timestamp=datetime.utcnow().isoformat() + "Z"
         )
         
     except Exception as e:
@@ -220,17 +233,17 @@ async def get_similar_questions(
 
 @router.get("/stats", response_model=ChatResponse)
 async def get_rag_statistics(
-    rag_service: RAGService = Depends(get_rag_service)
+    rag_service: MongoDBRAG = Depends(get_rag_service)
 ):
     """Get RAG system statistics"""
     try:
-        stats = rag_service.get_search_statistics()
+        stats = await rag_service.get_collection_stats()
         
         return ChatResponse(
             success=True,
             data={"stats": stats},
             message="ดึงสถิติระบบ RAG สำเร็จ",
-            timestamp=datetime.datetime.utcnow().isoformat() + "Z"
+            timestamp=datetime.utcnow().isoformat() + "Z"
         )
         
     except Exception as e:
@@ -239,25 +252,25 @@ async def get_rag_statistics(
 
 @router.get("/health", response_model=ChatResponse)
 async def health_check(
-    rag_service: RAGService = Depends(get_rag_service)
+    rag_service: MongoDBRAG = Depends(get_rag_service)
 ):
     """Health check for RAG system"""
     try:
         # Simple health check
-        stats = rag_service.get_search_statistics()
+        stats = await rag_service.get_collection_stats()
         
         health_status = {
             "rag_service": "healthy",
             "embedding_service": "healthy",
-            "documents_indexed": stats.get("total_documents_indexed", 0),
-            "chunks_available": stats.get("total_chunks_available", 0)
+            "documents_indexed": stats.get("document_count", 0),
+            "chunks_available": stats.get("document_count", 0)
         }
         
         return ChatResponse(
             success=True,
             data={"health": health_status},
             message="ระบบ RAG ทำงานปกติ",
-            timestamp=datetime.datetime.utcnow().isoformat() + "Z"
+            timestamp=datetime.utcnow().isoformat() + "Z"
         )
         
     except Exception as e:

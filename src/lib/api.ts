@@ -253,6 +253,18 @@ class ApiService {
     return this.request(`/flashcards/all?skip=${skip}&limit=${limit}`);
   }
 
+  async getFlashcardsByDocument(docId: string, skip: number = 0, limit: number = 50): Promise<ApiResponse<any>> {
+    return this.request(`/flashcards/by-document/${docId}?skip=${skip}&limit=${limit}`);
+  }
+
+  async getDueFlashcards(limit: number = 20): Promise<ApiResponse<any>> {
+    return this.request(`/flashcards/due?limit=${limit}`);
+  }
+
+  async getFlashcardTopics(): Promise<ApiResponse<any>> {
+    return this.request('/flashcards/topics');
+  }
+
   async submitBatchAnswers(answers: FlashcardAnswer[]): Promise<ApiResponse<any>> {
     return this.request('/flashcards/batch-answer', {
       method: 'POST',

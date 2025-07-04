@@ -122,6 +122,18 @@ class DocumentProcessorService:
                     }
                 },
             )
+            
+            # Clean up the processed file from uploads folder
+            try:
+                # Get the document to retrieve the file path
+                document = await documents_collection.find_one({"_id": ObjectId(doc_id)})
+                if document and document.get("uploadPath"):
+                    file_path = document["uploadPath"]
+                    await file_handler.delete_file(file_path)
+                    logger.info(f"Successfully deleted processed file: {file_path}")
+            except Exception as cleanup_error:
+                # Don't fail the processing if cleanup fails, just log it
+                logger.warning(f"Failed to cleanup file for doc {doc_id}: {cleanup_error}")
 
         except Exception as e:
             logger.error(f"Error processing chunks for doc {doc_id}: {e}")
@@ -184,5 +196,145 @@ class DocumentProcessorService:
         if error_message:
             update_data["error_message"] = error_message
         await documents_collection.update_one({"_id": ObjectId(doc_id)}, {"$set": update_data})
+
+    async def retrieve_document_chunks(
+        self, 
+        doc_id: str, 
+        query: Optional[str] = None,
+        top_k: int = 5
+    ) -> List[Dict[str, Any]]:
+        """Retrieve document chunks, optionally filtered by similarity to query"""
+        try:
+            chunks_collection = mongodb_manager.get_document_chunks_collection()
+            
+            if query:
+                # Use semantic search to find relevant chunks
+                from app.services.rag_service import get_rag_service
+                rag_service = get_rag_service()
+                
+                # Use the new MongoDB vector search method
+                results = await rag_service.vector_search_mongodb_rag(
+                    query=query,
+                    top_k=top_k,
+                    document_id=doc_id
+                )
+                return results
+            else:
+                # Return all chunks for the document
+                cursor = chunks_collection.find({"document_id": doc_id}).sort("chunk_index", 1)
+                chunks = await cursor.to_list(length=None)
+                return chunks
+                
+        except Exception as e:
+            logger.error(f"Error retrieving document chunks: {e}")
+            return []
+
+    async def search_across_documents(
+        self,
+        user_id: str,
+        query: str,
+        document_ids: Optional[List[str]] = None,
+        top_k: int = 10
+    ) -> List[Dict[str, Any]]:
+        """Search across multiple user documents using enhanced RAG capabilities"""
+        try:
+            from app.services.rag_service import get_rag_service
+            rag_service = get_rag_service()
+            
+            # Get user's documents if not specified
+            if not document_ids:
+                documents_collection = mongodb_manager.get_documents_collection()
+                user_docs = await documents_collection.find(
+                    {"userId": user_id, "status": "completed"}
+                ).to_list(length=100)
+                document_ids = [str(doc["_id"]) for doc in user_docs]
+            
+            # Perform semantic search across documents
+            chunks = await rag_service.semantic_search(
+                query=query,
+                user_id=user_id,
+                document_ids=document_ids,
+                top_k=top_k
+            )
+            
+            # Convert RetrievedChunk objects to dictionaries
+            results = []
+            for chunk in chunks:
+                results.append({
+                    "text": chunk.text,
+                    "similarity_score": chunk.similarity_score,
+                    "document_id": chunk.document_id,
+                    "document_title": chunk.document_title,
+                    "chunk_index": chunk.chunk_index,
+                    "confidence_level": chunk.confidence_level.value
+                })
+            
+            return results
+            
+        except Exception as e:
+            logger.error(f"Error searching across documents: {e}")
+            return []
+
+    async def get_document_context(
+        self,
+        doc_id: str,
+        query: str,
+        max_chunks: int = 5
+    ) -> str:
+        """Get contextual information from a document based on a query"""
+        try:
+            from app.services.rag_service import get_rag_service
+            rag_service = get_rag_service()
+            
+            # Use the enhanced context retrieval method
+            context = await rag_service.retrieve_context_advanced(
+                query=query,
+                top_k=max_chunks,
+                document_id=doc_id
+            )
+            
+            return context
+            
+        except Exception as e:
+            logger.error(f"Error getting document context: {e}")
+            return ""
+
+    async def hybrid_document_search(
+        self,
+        user_id: str,
+        query: str,
+        document_ids: Optional[List[str]] = None,
+        top_k: int = 5
+    ) -> List[Dict[str, Any]]:
+        """Perform hybrid search (text + vector) across documents"""
+        try:
+            from app.services.rag_service import get_rag_service
+            rag_service = get_rag_service()
+            
+            # Get user's documents if not specified
+            if not document_ids:
+                documents_collection = mongodb_manager.get_documents_collection()
+                user_docs = await documents_collection.find(
+                    {"userId": user_id, "status": "completed"}
+                ).to_list(length=100)
+                document_ids = [str(doc["_id"]) for doc in user_docs]
+            
+            # Perform hybrid search for each document and combine results
+            all_results = []
+            for doc_id in document_ids:
+                results = await rag_service.hybrid_search_mongodb(
+                    query=query,
+                    top_k=top_k,
+                    document_id=doc_id
+                )
+                all_results.extend(results)
+            
+            # Sort by combined score and return top results
+            all_results.sort(key=lambda x: x.get('score', 0), reverse=True)
+            return all_results[:top_k]
+            
+        except Exception as e:
+            logger.error(f"Error in hybrid document search: {e}")
+            return []
 
 document_processor = DocumentProcessorService()
