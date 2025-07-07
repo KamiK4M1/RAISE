@@ -341,6 +341,8 @@ export default function DashboardPage() {
                     </Card>
                   </Link>
 
+  
+
                   <Link href="/chat">
                     <Card className="border border-gray-200 hover:border-orange-300 hover:shadow-md transition-all cursor-pointer">
                       <CardContent className="p-4 sm:p-6 text-center">

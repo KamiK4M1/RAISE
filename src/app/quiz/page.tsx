@@ -3,90 +3,65 @@
 import { useState, useEffect } from "react"
 import { Button } from "@/components/ui/button"
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card"
-import { Progress } from "@/components/ui/progress"
-import { RadioGroup, RadioGroupItem } from "@/components/ui/radio-group"
-import { Label } from "@/components/ui/label"
-import { Brain, ArrowLeft, CheckCircle, XCircle, Clock, Award } from "lucide-react"
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
+import { BloomsQuizInterface } from "@/components/quiz/BloomsQuizInterface"
+import { Brain, BookOpen, Target, Clock, ArrowRight, Upload } from "lucide-react"
 import Link from "next/link"
 import { apiService } from "@/lib/api"
-import { Quiz, QuizQuestion, QuizResults } from "@/types/api"
+import { Document } from "@/types/api"
 
 export default function QuizPage() {
-  const [quiz, setQuiz] = useState<Quiz | null>(null)
-  const [currentQuestion, setCurrentQuestion] = useState(0)
-  const [selectedAnswer, setSelectedAnswer] = useState("")
-  const [answers, setAnswers] = useState<string[]>([])
-  const [showResults, setShowResults] = useState(false)
-  const [quizResults, setQuizResults] = useState<QuizResults | null>(null)
-  const [timeLeft, setTimeLeft] = useState(300) // 5 minutes
+  const [documents, setDocuments] = useState<Document[]>([])
+  const [selectedDocument, setSelectedDocument] = useState("")
+  const [showQuiz, setShowQuiz] = useState(false)
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState<string | null>(null)
-  const [startTime, setStartTime] = useState(Date.now())
-  
-  // Get document ID from URL or use default for demo
-  const documentId = "demo-document" // This should come from router params in real app
 
   useEffect(() => {
-    const loadQuiz = async () => {
+    const loadDocuments = async () => {
       try {
-        setLoading(true);
-        const response = await apiService.generateQuiz(documentId, { question_count: 5, bloom_distribution: {}, difficulty: 'medium' });
+        setLoading(true)
+        const response = await apiService.listDocuments()
         if (response.success && response.data) {
-          setQuiz(response.data);
-          setTimeLeft(response.data.time_limit || 300);
-          setStartTime(Date.now());
+          // Filter only completed documents
+          const completedDocs = response.data.filter(doc => 
+            doc.processing_status === 'completed' || doc.status === 'completed'
+          )
+          setDocuments(completedDocs)
+          if (completedDocs.length > 0) {
+            setSelectedDocument(completedDocs[0].document_id)
+          }
         } else {
-          throw new Error(response.message || 'Failed to load quiz');
+          throw new Error(response.message || 'Failed to load documents')
         }
       } catch (error) {
-        console.error('Error loading quiz:', error);
-        const errorMessage = error instanceof Error ? error.message : 'ไม่สามารถโหลดแบบทดสอบได้';
-        setError(errorMessage);
+        console.error('Error loading documents:', error)
+        setError(error instanceof Error ? error.message : 'Failed to load documents')
       } finally {
-        setLoading(false);
+        setLoading(false)
       }
-    };
-
-    loadQuiz();
-  }, [documentId]);
-
-  const handleAnswerSelect = (value: string) => {
-    setSelectedAnswer(value)
-  }
-
-  const handleNextQuestion = async () => {
-    const newAnswers = [...answers];
-    newAnswers[currentQuestion] = selectedAnswer;
-    setAnswers(newAnswers);
-
-    if (quiz && currentQuestion < quiz.questions.length - 1) {
-      setCurrentQuestion(currentQuestion + 1);
-      setSelectedAnswer("");
-    } else if (quiz) {
-      const timeTaken = (Date.now() - startTime) / 1000;
-      const response = await apiService.submitQuiz(quiz.quiz_id, newAnswers, timeTaken);
-      if(response.success && response.data) {
-        setQuizResults(response.data);
-      }
-      setShowResults(true);
     }
-  };
 
-  const calculateScore = () => {
-    if (!quiz) return { correct: 0, total: 0, percentage: 0 }
-    let correct = 0
-    answers.forEach((answer, index) => {
-      if (answer === quiz.questions[index].correct_answer) {
-        correct++
-      }
-    })
-    return { correct, total: quiz.questions.length, percentage: Math.round((correct / quiz.questions.length) * 100) }
+    loadDocuments()
+  }, [])
+
+  const handleStartQuiz = () => {
+    if (selectedDocument) {
+      setShowQuiz(true)
+    }
   }
 
-  const formatTime = (seconds: number) => {
-    const mins = Math.floor(seconds / 60)
-    const secs = seconds % 60
-    return `${mins}:${secs.toString().padStart(2, "0")}`
+  const handleBackToSetup = () => {
+    setShowQuiz(false)
+  }
+
+  if (showQuiz && selectedDocument) {
+    return (
+      <BloomsQuizInterface 
+        documentId={selectedDocument}
+        onBack={handleBackToSetup}
+      />
+    )
   }
 
   if (loading) {
@@ -94,155 +69,78 @@ export default function QuizPage() {
       <div className="min-h-screen bg-gray-50 flex items-center justify-center">
         <div className="text-center">
           <Brain className="h-12 w-12 text-blue-600 mx-auto mb-4 animate-spin" />
-          <p className="text-gray-600">กำลังโหลดแบบทดสอบ...</p>
+          <p className="text-gray-600">กำลังโหลดเอกสาร...</p>
         </div>
       </div>
     )
   }
 
-  if (error) {
+  if (error && documents.length === 0) {
     return (
       <div className="min-h-screen bg-gray-50 flex items-center justify-center">
-        <div className="text-center">
-          <XCircle className="h-12 w-12 text-red-600 mx-auto mb-4" />
-          <p className="text-red-600 mb-4">{error}</p>
-          <Link href="/dashboard">
-            <Button>กลับหน้าหลัก</Button>
-          </Link>
-        </div>
+        <Card className="w-full max-w-md">
+          <CardHeader className="text-center">
+            <BookOpen className="h-12 w-12 text-gray-400 mx-auto mb-4" />
+            <CardTitle className="text-red-600">เกิดข้อผิดพลาด</CardTitle>
+            <CardDescription>{error}</CardDescription>
+          </CardHeader>
+          <CardContent>
+            <Button 
+              onClick={() => window.location.reload()} 
+              className="w-full"
+            >
+              ลองใหม่
+            </Button>
+          </CardContent>
+        </Card>
       </div>
     )
   }
 
-  if (!quiz) {
+  if (documents.length === 0) {
     return (
       <div className="min-h-screen bg-gray-50 flex items-center justify-center">
-        <div className="text-center">
-          <XCircle className="h-12 w-12 text-gray-600 mx-auto mb-4" />
-          <p className="text-gray-600 mb-4">ไม่พบแบบทดสอบ</p>
-          <Link href="/dashboard">
-            <Button>กลับหน้าหลัก</Button>
-          </Link>
-        </div>
+        <Card className="w-full max-w-md">
+          <CardHeader className="text-center">
+            <BookOpen className="h-12 w-12 text-gray-400 mx-auto mb-4" />
+            <CardTitle>ไม่มีเอกสารที่พร้อมใช้งาน</CardTitle>
+            <CardDescription>
+              คุณจำเป็นต้องอัปโหลดและประมวลผลเอกสารอย่างน้อย 1 ฉบับก่อนที่จะสามารถทำแบบทดสอบได้
+            </CardDescription>
+          </CardHeader>
+          <CardContent>
+            <Link href="/upload">
+              <Button className="w-full">
+                <Upload className="h-4 w-4 mr-2" />
+                อัปโหลดเอกสาร
+              </Button>
+            </Link>
+          </CardContent>
+        </Card>
       </div>
     )
   }
-
-  if (showResults) {
-    const score = calculateScore()
-    return (
-      <div className="min-h-screen bg-gray-50">
-        <nav className="bg-white border-b">
-          <div className="container mx-auto px-4 py-4 flex items-center justify-between">
-            <div className="flex items-center space-x-4">
-              <Link href="/dashboard">
-                <Button variant="ghost" size="sm" className="text-gray-600 hover:text-gray-900">
-                  <ArrowLeft className="h-4 w-4 mr-2" />
-                  กลับ
-                </Button>
-              </Link>
-              <div className="flex items-center space-x-2">
-                <Brain className="h-8 w-8 text-blue-600" />
-                <span className="text-2xl font-bold text-gray-900">RAISE</span>
-              </div>
-            </div>
-          </div>
-        </nav>
-
-        <div className="container mx-auto px-4 py-8">
-          <div className="max-w-4xl mx-auto">
-            <Card className="border-0 shadow-lg text-center">
-              <CardHeader>
-                <Award className="h-16 w-16 text-yellow-500 mx-auto mb-4" />
-                <CardTitle className="text-3xl">ผลการทำแบบทดสอบ</CardTitle>
-                <CardDescription className="text-lg">{quiz?.title}</CardDescription>
-              </CardHeader>
-              <CardContent>
-                <div className="grid md:grid-cols-3 gap-6 mb-8">
-                  <div className="text-center">
-                    <div className="text-4xl font-bold text-green-600 mb-2">{score.correct}</div>
-                    <div className="text-gray-600">ข้อที่ถูก</div>
-                  </div>
-                  <div className="text-center">
-                    <div className="text-4xl font-bold text-red-600 mb-2">{score.total - score.correct}</div>
-                    <div className="text-gray-600">ข้อที่ผิด</div>
-                  </div>
-                  <div className="text-center">
-                    <div className="text-4xl font-bold text-blue-600 mb-2">{score.percentage}%</div>
-                    <div className="text-gray-600">คะแนนรวม</div>
-                  </div>
-                </div>
-
-                <div className="space-y-4">
-                  {quiz?.questions.map((question, index) => (
-                    <Card key={question.question_id} className="text-left">
-                      <CardContent className="p-4">
-                        <div className="flex items-start space-x-3">
-                          {answers[index] === question.correct_answer ? (
-                            <CheckCircle className="h-5 w-5 text-green-600 mt-1 flex-shrink-0" />
-                          ) : (
-                            <XCircle className="h-5 w-5 text-red-600 mt-1 flex-shrink-0" />
-                          )}
-                          <div className="flex-1">
-                            <p className="font-medium mb-2">{question.question}</p>
-                            <div className="text-sm space-y-1">
-                              <p>
-                                <span className="font-medium">คำตอบของคุณ:</span> {answers[index] || "ไม่ได้ตอบ"}
-                              </p>
-                              <p>
-                                <span className="font-medium">คำตอบที่ถูก:</span> {question.correct_answer}
-                              </p>
-                              <p className="text-gray-600">{question.explanation}</p>
-                              <p className="text-xs text-blue-600">ระดับ Bloom's Taxonomy: {question.bloom_level}</p>
-                            </div>
-                          </div>
-                        </div>
-                      </CardContent>
-                    </Card>
-                  ))}
-                </div>
-
-                <div className="mt-8 space-x-4">
-                  <Link href="/quiz">
-                    <Button className="bg-blue-600 hover:bg-blue-700">ทำแบบทดสอบใหม่</Button>
-                  </Link>
-                  <Link href="/dashboard">
-                    <Button variant="outline" className="bg-white text-gray-700 border-gray-300 hover:bg-gray-50">
-                      กลับหน้าหลัก
-                    </Button>
-                  </Link>
-                </div>
-              </CardContent>
-            </Card>
-          </div>
-        </div>
-      </div>
-    )
-  }
-
-  const progress = quiz ? ((currentQuestion + 1) / quiz.questions.length) * 100 : 0
 
   return (
-    <div className="min-h-screen bg-gray-50">
+    <div className="min-h-screen bg-gradient-to-br from-gray-50 to-blue-50">
       {/* Navigation */}
-      <nav className="bg-white border-b">
+      <nav className="bg-white/80 backdrop-blur-sm border-b sticky top-0 z-50">
         <div className="container mx-auto px-4 py-4 flex items-center justify-between">
           <div className="flex items-center space-x-4">
             <Link href="/dashboard">
               <Button variant="ghost" size="sm" className="text-gray-600 hover:text-gray-900">
-                <ArrowLeft className="h-4 w-4 mr-2" />
+                <ArrowRight className="h-4 w-4 mr-2 rotate-180" />
                 กลับ
               </Button>
             </Link>
             <div className="flex items-center space-x-2">
-              <Brain className="h-8 w-8 text-blue-600" />
-              <span className="text-2xl font-bold text-gray-900">AI Learning</span>
-            </div>
-          </div>
-          <div className="flex items-center space-x-4">
-            <div className="flex items-center space-x-2 text-gray-600">
-              <Clock className="h-4 w-4" />
-              <span className="font-mono">{formatTime(timeLeft)}</span>
+              <div className="p-2 bg-gradient-to-r from-blue-600 to-purple-600 rounded-lg">
+                <Brain className="h-6 w-6 text-white" />
+              </div>
+              <div>
+                <h1 className="text-xl font-bold text-gray-900">แบบทดสอบ AI</h1>
+                <p className="text-sm text-gray-600">ครอบคลุมทุกระดับ Bloom's Taxonomy</p>
+              </div>
             </div>
           </div>
         </div>
@@ -251,66 +149,116 @@ export default function QuizPage() {
       <div className="container mx-auto px-4 py-8">
         <div className="max-w-4xl mx-auto">
           {/* Header */}
-          <div className="mb-8">
-            <h1 className="text-3xl font-bold text-gray-900 mb-2">{quiz?.title}</h1>
-            <p className="text-gray-600">แบบทดสอบที่ครอบคลุมทุกระดับตาม Bloom's Taxonomy</p>
-          </div>
-
-          {/* Progress */}
-          <div className="mb-8">
-            <div className="flex justify-between items-center mb-2">
-              <span className="text-sm text-gray-600">ความคืบหน้า</span>
-              <span className="text-sm font-medium">
-                {currentQuestion + 1} / {quiz?.questions.length || 0}
-              </span>
+          <div className="text-center mb-12">
+            <div className="inline-flex items-center justify-center p-3 bg-gradient-to-r from-blue-100 to-purple-100 rounded-full mb-6">
+              <Target className="h-8 w-8 text-blue-600" />
             </div>
-            <Progress value={progress} className="h-2" />
+            <h1 className="text-4xl font-bold bg-gradient-to-r from-blue-600 to-purple-600 bg-clip-text text-transparent mb-4">
+              แบบทดสอบ Bloom's Taxonomy
+            </h1>
+            <p className="text-lg text-gray-600 max-w-2xl mx-auto">
+              ทดสอบความรู้ความเข้าใจของคุณในทุกระดับ ตั้งแต่การจำไปจนถึงการสร้างสรรค์
+            </p>
           </div>
 
-          {/* Question */}
-          <Card className="border-0 shadow-lg mb-8">
+          {/* Bloom's Taxonomy Overview */}
+          <Card className="border-0 shadow-lg mb-8 bg-white/50 backdrop-blur-sm">
             <CardHeader>
-              <div className="flex justify-between items-start">
-                <div>
-                  <CardTitle className="text-xl mb-2">คำถามที่ {currentQuestion + 1}</CardTitle>
-                  <CardDescription>ระดับ: {quiz?.questions[currentQuestion]?.bloom_level}</CardDescription>
-                </div>
-              </div>
+              <CardTitle className="flex items-center text-xl">
+                <Brain className="h-6 w-6 mr-3 text-blue-600" />
+                ระดับการเรียนรู้ตาม Bloom's Taxonomy
+              </CardTitle>
+              <CardDescription className="text-base">
+                แบบทดสอบนี้จะประเมินความสามารถของคุณในทุกระดับของการคิด
+              </CardDescription>
             </CardHeader>
             <CardContent>
-              <h2 className="text-lg font-medium mb-6 leading-relaxed">{quiz?.questions[currentQuestion]?.question}</h2>
-
-              <RadioGroup value={selectedAnswer} onValueChange={handleAnswerSelect}>
-                <div className="space-y-4">
-                  {quiz?.questions[currentQuestion]?.options.map((option, index) => (
-                    <div
-                      key={index}
-                      className="flex items-center space-x-3 p-4 border rounded-lg hover:bg-gray-50 transition-colors"
-                    >
-                      <RadioGroupItem value={option} id={`option-${index}`} />
-                      <Label htmlFor={`option-${index}`} className="flex-1 cursor-pointer text-base">
-                        {option}
-                      </Label>
+              <div className="grid md:grid-cols-2 lg:grid-cols-3 gap-4">
+                {[
+                  { level: "จำ (Remember)", description: "การระลึกข้อเท็จจริงและแนวคิด", color: "bg-blue-50 text-blue-700", icon: "🧠" },
+                  { level: "เข้าใจ (Understand)", description: "การตีความและอธิบายความหมาย", color: "bg-green-50 text-green-700", icon: "💡" },
+                  { level: "ประยุกต์ (Apply)", description: "การนำความรู้ไปใช้ในสถานการณ์ใหม่", color: "bg-yellow-50 text-yellow-700", icon: "🔧" },
+                  { level: "วิเคราะห์ (Analyze)", description: "การแยกแยะและหาความสัมพันธ์", color: "bg-orange-50 text-orange-700", icon: "🔍" },
+                  { level: "ประเมิน (Evaluate)", description: "การตัดสินใจและการวิจารณ์", color: "bg-purple-50 text-purple-700", icon: "⚖️" },
+                  { level: "สร้างสรรค์ (Create)", description: "การสร้างใหม่และการออกแบบ", color: "bg-pink-50 text-pink-700", icon: "✨" }
+                ].map((item, index) => (
+                  <div key={index} className={`p-4 rounded-lg border ${item.color}`}>
+                    <div className="flex items-center space-x-2 mb-2">
+                      <span className="text-xl">{item.icon}</span>
+                      <h3 className="font-semibold">{item.level}</h3>
                     </div>
-                  ))}
-                </div>
-              </RadioGroup>
+                    <p className="text-sm opacity-80">{item.description}</p>
+                  </div>
+                ))}
+              </div>
             </CardContent>
           </Card>
 
-          {/* Navigation */}
-          <div className="flex justify-between">
-            <Button
-              variant="outline"
-              disabled={currentQuestion === 0}
-              className="bg-white text-gray-700 border-gray-300 hover:bg-gray-50"
-            >
-              คำถามก่อนหน้า
-            </Button>
+          {/* Document Selection */}
+          <Card className="border-0 shadow-lg mb-8 bg-white/50 backdrop-blur-sm">
+            <CardHeader>
+              <CardTitle className="flex items-center text-xl">
+                <BookOpen className="h-6 w-6 mr-3 text-blue-600" />
+                เลือกเอกสารสำหรับสร้างแบบทดสอบ
+              </CardTitle>
+              <CardDescription className="text-base">
+                เลือกเอกสารที่คุณต้องการให้ AI สร้างแบบทดสอบตาม Bloom's Taxonomy
+              </CardDescription>
+            </CardHeader>
+            <CardContent>
+              <div className="space-y-4">
+                <Select value={selectedDocument} onValueChange={setSelectedDocument}>
+                  <SelectTrigger className="h-12 text-base">
+                    <SelectValue placeholder="เลือกเอกสาร" />
+                  </SelectTrigger>
+                  <SelectContent>
+                    {documents.map((doc) => (
+                      <SelectItem key={doc.document_id} value={doc.document_id}>
+                        <div className="flex items-center justify-between w-full">
+                          <span className="truncate mr-4">{doc.filename}</span>
+                          <span className="text-xs text-gray-500">
+                            ({(doc.file_size / 1024).toFixed(1)} KB)
+                          </span>
+                        </div>
+                      </SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
 
-            <Button onClick={handleNextQuestion} disabled={!selectedAnswer} className="bg-blue-600 hover:bg-blue-700">
-              {quiz && currentQuestion === quiz.questions.length - 1 ? "ส่งคำตอบ" : "คำถามถัดไป"}
+                {selectedDocument && (
+                  <div className="p-4 bg-gradient-to-r from-blue-50 to-purple-50 rounded-lg border border-blue-200">
+                    <h4 className="font-medium text-blue-900 mb-2">แบบทดสอบจะประกอบด้วย:</h4>
+                    <ul className="text-sm text-blue-800 space-y-1">
+                      <li>• คำถาม 15 ข้อ ครอบคลุมทุกระดับ Bloom's Taxonomy</li>
+                      <li>• เวลาทำข้อสอบ 20 นาที</li>
+                      <li>• คำอธิบายละเอียดสำหรับทุกข้อ</li>
+                      <li>• การวิเคราะห์ผลงานแยกตามระดับการคิด</li>
+                      <li>• คำแนะนำสำหรับการศึกษาต่อ</li>
+                    </ul>
+                  </div>
+                )}
+              </div>
+            </CardContent>
+          </Card>
+
+          {/* Start Quiz Button */}
+          <div className="text-center">
+            {error && (
+              <p className="text-red-600 mb-4 text-sm">{error}</p>
+            )}
+            <Button
+              onClick={handleStartQuiz}
+              disabled={!selectedDocument}
+              size="lg"
+              className="bg-gradient-to-r from-blue-600 to-purple-600 hover:from-blue-700 hover:to-purple-700 text-white px-8 py-6 text-lg font-semibold shadow-2xl border-0"
+            >
+              <Brain className="h-6 w-6 mr-3" />
+              เริ่มทำแบบทดสอบ
+              <ArrowRight className="h-6 w-6 ml-3" />
             </Button>
+            <p className="text-sm text-gray-600 mt-4">
+              แบบทดสอบจะใช้เวลา 20 นาที และครอบคลุมทุกระดับการคิด
+            </p>
           </div>
         </div>
       </div>

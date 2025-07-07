@@ -290,13 +290,10 @@ class ApiService {
     });
   }
 
-  async submitQuiz(quizId: string, answers: string[], timeTaken: number): Promise<ApiResponse<QuizResults>> {
+  async submitQuiz(quizId: string, submission: { answers: string[], time_taken: number }): Promise<ApiResponse<QuizResults>> {
     return this.request(`/quiz/${quizId}/submit`, {
       method: 'POST',
-      body: JSON.stringify({
-        answers,
-        time_taken: timeTaken,
-      }),
+      body: JSON.stringify(submission),
     });
   }
 

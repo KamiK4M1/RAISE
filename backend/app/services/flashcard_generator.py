@@ -2,6 +2,7 @@ import uuid
 from datetime import datetime, timedelta, timezone
 from typing import List, Dict, Any, Optional
 import logging
+from bson import ObjectId
 
 from app.database.mongodb import mongodb_manager
 from app.models.flashcard import Flashcard, ReviewSession, FlashcardStats, FlashcardResponse
@@ -338,16 +339,21 @@ Ensure the flashcards are:
         try:
             collection = await get_flashcards_collection()
             
-            card_data = await collection.find_one({"card_id": card_id})
+            card_data = await collection.find_one({"_id": ObjectId(card_id)})
             if not card_data:
                 raise DatabaseError("ไม่พบบัตรคำศัพท์ที่ร้องขอ")
+            
+            # Convert _id to id for Flashcard model
+            if '_id' in card_data:
+                card_data['id'] = str(card_data['_id'])
+                del card_data['_id']
             
             # FIX: Use the correct Flashcard model
             card = Flashcard(**card_data)
             
             # FIX: Get the spaced_repetition service
             spaced_repetition = get_spaced_repetition_service()
-            new_ease_factor, new_interval, next_review = spaced_repetition.calculate_next_review(
+            new_ease_factor, new_interval, next_review = spaced_repetition._calculate_sm2_parameters(
                 card.ease_factor,
                 card.interval,
                 quality,
@@ -369,7 +375,7 @@ Ensure the flashcards are:
             }
             
             await collection.update_one(
-                {"card_id": card_id},
+                {"_id": ObjectId(card_id)},
                 {"$set": update_data}
             )
             
@@ -424,7 +430,7 @@ Ensure the flashcards are:
                     schedule[review_date] = []
                 
                 schedule[review_date].append({
-                    "card_id": card.card_id,
+                    "card_id": card.id,
                     "question": card.question[:100] + "..." if len(card.question) > 100 else card.question,
                     "difficulty": card.difficulty,
                     "review_count": card.review_count,
@@ -508,7 +514,7 @@ Ensure the flashcards are:
             spaced_repetition = get_spaced_repetition_service()
             
             result = await collection.update_one(
-                {"card_id": card_id},
+                {"_id": ObjectId(card_id)},
                 {
                     "$set": {
                         "ease_factor": spaced_repetition.DEFAULT_EASE_FACTOR,
@@ -533,7 +539,7 @@ Ensure the flashcards are:
         try:
             collection = await get_flashcards_collection()
             
-            result = await collection.delete_one({"card_id": card_id})
+            result = await collection.delete_one({"_id": ObjectId(card_id)})
             return result.deleted_count > 0
             
         except Exception as e:

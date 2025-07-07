@@ -3,8 +3,7 @@
     "allow": [
       "Bash(rg:*)",
       "Bash(touch:*)",
-      "Bash(find:*)",
-      "Bash(python:*)"
+      "Bash(find:*)"
     ],
     "deny": []
   }

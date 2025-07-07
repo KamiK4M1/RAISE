@@ -113,18 +113,19 @@ export default function FlashcardPage() {
       }
 
       await apiService.submitFlashcardAnswer(answer)
-      
-      // Move to next card or finish
-      if (currentCardIndex < flashcards.length - 1) {
-        setCurrentCardIndex(currentCardIndex + 1)
-        setIsFlipped(false)
-      } else {
-        alert("เสร็จสิ้นการทบทวน!")
-        loadFlashcardData() // Reload to get updated status
-        setActiveTab("list")
-      }
     } catch (error) {
       console.error('Error submitting answer:', error)
+      // Continue even if API call fails - don't block user progression
+    }
+    
+    // Always move to next card or finish, regardless of API success/failure
+    if (currentCardIndex < flashcards.length - 1) {
+      setCurrentCardIndex(currentCardIndex + 1)
+      setIsFlipped(false)
+    } else {
+      alert("เสร็จสิ้นการทบทวน!")
+      loadFlashcardData() // Reload to get updated status
+      setActiveTab("list")
     }
   }
 
@@ -355,38 +356,13 @@ export default function FlashcardPage() {
                           </Button>
                         </div>
                       ) : (
-                        <div className="grid grid-cols-3 gap-4">
-                          <Button
-                            onClick={() => handleAnswer("hard")}
-                            variant="outline"
-                            className="bg-red-50 text-red-700 border-red-200 hover:bg-red-100 py-6"
-                          >
-                            <div className="text-center">
-                              <div className="font-semibold">ยาก</div>
-                              <div className="text-sm opacity-75">ทบทวนใน 1 วัน</div>
-                            </div>
-                          </Button>
-
+                        <div className="text-center">
                           <Button
                             onClick={() => handleAnswer("medium")}
-                            variant="outline"
-                            className="bg-yellow-50 text-yellow-700 border-yellow-200 hover:bg-yellow-100 py-6"
+                            className="bg-blue-600 hover:bg-blue-700 text-white px-8 py-4 text-lg"
                           >
-                            <div className="text-center">
-                              <div className="font-semibold">ปานกลาง</div>
-                              <div className="text-sm opacity-75">ทบทวนใน 3 วัน</div>
-                            </div>
-                          </Button>
-
-                          <Button
-                            onClick={() => handleAnswer("easy")}
-                            variant="outline"
-                            className="bg-green-50 text-green-700 border-green-200 hover:bg-green-100 py-6"
-                          >
-                            <div className="text-center">
-                              <div className="font-semibold">ง่าย</div>
-                              <div className="text-sm opacity-75">ทบทวนใน 7 วัน</div>
-                            </div>
+                            <Check className="h-5 w-5 mr-2" />
+                            Next Flashcard
                           </Button>
                         </div>
                       )}

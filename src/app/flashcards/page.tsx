@@ -264,6 +264,12 @@ export default function FlashcardsPage() {
             </div>
           </div>
           <div className="flex items-center space-x-2">
+            <Link href="/flashcards/quiz">
+              <Button variant="outline" className="bg-white text-blue-700 border-blue-300 hover:bg-blue-50">
+                <Brain className="h-4 w-4 mr-2" />
+                Quiz Mode
+              </Button>
+            </Link>
             <Link href="/flashcards/library">
               <Button variant="outline" className="bg-white text-gray-700 border-gray-300 hover:bg-gray-50">
                 <BookOpen className="h-4 w-4 mr-2" />

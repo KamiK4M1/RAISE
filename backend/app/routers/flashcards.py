@@ -335,7 +335,7 @@ async def get_all_user_flashcards(
                 "ease_factor": card.easeFactor,
                 "interval": card.interval,
                 "urgency": spaced_repetition.get_review_urgency(card.nextReview),
-                "is_due": card.nextReview <= datetime.now(timezone.utc)
+                "is_due": card.nextReview <= datetime.now(timezone.utc) if card.nextReview.tzinfo else card.nextReview <= datetime.now()
             })
         
         return DocumentAPIResponse(
@@ -386,7 +386,7 @@ async def get_flashcards_by_document(
                 "ease_factor": card.easeFactor,
                 "interval": card.interval,
                 "urgency": spaced_repetition.get_review_urgency(card.nextReview),
-                "is_due": card.nextReview <= datetime.now(timezone.utc)
+                "is_due": card.nextReview <= datetime.now(timezone.utc) if card.nextReview.tzinfo else card.nextReview <= datetime.now()
             })
         
         # Determine if this is a topic-based collection

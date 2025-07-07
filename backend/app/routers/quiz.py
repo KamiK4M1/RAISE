@@ -1,7 +1,7 @@
 from fastapi import APIRouter, HTTPException, Depends
 from typing import Optional, List
 import logging
-from datetime import datetime
+from datetime import datetime, timezone
 
 from app.models.quiz import (
     QuizGenerateRequest, QuizSubmission, QuizResponse, 
@@ -24,7 +24,7 @@ async def generate_quiz(
     """Generate a quiz from document using Bloom's Taxonomy"""
     try:
         # FIX: Get an instance of the quiz generator service
-        quiz_generator = await get_quiz_generator_service()
+        quiz_generator = get_quiz_generator_service()
         quiz = await quiz_generator.generate_quiz(
             document_id=doc_id,
             user_id=user_id,
@@ -45,18 +45,18 @@ async def generate_quiz(
                 "bloom_distribution": quiz.bloom_distribution,
                 "questions": [
                     {
-                        "question_id": q.question_id,
-                        "question": q.question,
-                        "options": q.options,
-                        "bloom_level": q.bloom_level,
-                        "difficulty": q.difficulty,
-                        "points": q.points
+                        "question_id": q.get("questionId") or q.get("question_id"),
+                        "question": q.get("question"),
+                        "options": q.get("options"),
+                        "bloom_level": q.get("bloomLevel") or q.get("bloom_level"),
+                        "difficulty": q.get("difficulty"),
+                        "points": q.get("points")
                     }
                     for q in quiz.questions
                 ]
             },
             message=f"สร้างแบบทดสอบ {len(quiz.questions)} ข้อสำเร็จ",
-            timestamp=datetime.datetime.utcnow().isoformat() + "Z"
+            timestamp=datetime.now(timezone.utc).isoformat() + "Z"
         )
         
     except Exception as e:
@@ -71,7 +71,7 @@ async def get_quiz(
     """Get quiz by ID"""
     try:
         # FIX: Get an instance of the quiz generator service
-        quiz_generator = await get_quiz_generator_service()
+        quiz_generator = get_quiz_generator_service()
         quiz = await quiz_generator.get_quiz(quiz_id)
         
         if not quiz:
@@ -91,18 +91,18 @@ async def get_quiz(
                 "bloom_distribution": quiz.bloom_distribution,
                 "questions": [
                     {
-                        "question_id": q.question_id,
-                        "question": q.question,
-                        "options": q.options,
-                        "bloom_level": q.bloom_level,
-                        "difficulty": q.difficulty,
-                        "points": q.points
+                        "question_id": q.get("questionId") or q.get("question_id"),
+                        "question": q.get("question"),
+                        "options": q.get("options"),
+                        "bloom_level": q.get("bloomLevel") or q.get("bloom_level"),
+                        "difficulty": q.get("difficulty"),
+                        "points": q.get("points")
                     }
                     for q in quiz.questions
                 ]
             },
             message="ดึงข้อมูลแบบทดสอบสำเร็จ",
-            timestamp=datetime.datetime.utcnow().isoformat() + "Z"
+            timestamp=datetime.now(timezone.utc).isoformat() + "Z"
         )
         
     except HTTPException:
@@ -120,7 +120,7 @@ async def submit_quiz(
     """Submit quiz answers and get results"""
     try:
         # FIX: Get an instance of the quiz generator service
-        quiz_generator = await get_quiz_generator_service()
+        quiz_generator = get_quiz_generator_service()
         results = await quiz_generator.submit_quiz(
             quiz_id=quiz_id,
             user_id=user_id,
@@ -141,7 +141,7 @@ async def submit_quiz(
                 "recommendations": results.recommendations
             },
             message=f"ส่งแบบทดสอบสำเร็จ คะแนน {results.percentage:.1f}%",
-            timestamp=datetime.datetime.utcnow().isoformat() + "Z"
+            timestamp=datetime.now(timezone.utc).isoformat() + "Z"
         )
         
     except Exception as e:
@@ -157,7 +157,7 @@ async def get_quiz_results(
     """Get specific quiz attempt results"""
     try:
         # FIX: Get an instance of the quiz generator service
-        quiz_generator = await get_quiz_generator_service()
+        quiz_generator = get_quiz_generator_service()
         attempt = await quiz_generator.get_quiz_results(attempt_id, user_id)
         
         if not attempt:
@@ -167,7 +167,7 @@ async def get_quiz_results(
             success=True,
             data=attempt.dict(), # Directly return the model dict
             message="ดึงผลการทำแบบทดสอบสำเร็จ",
-            timestamp=datetime.datetime.utcnow().isoformat() + "Z"
+            timestamp=datetime.now(timezone.utc).isoformat() + "Z"
         )
         
     except HTTPException:
@@ -184,7 +184,7 @@ async def get_quiz_history(
     """Get quiz history for a document"""
     try:
         # FIX: Get an instance of the quiz generator service
-        quiz_generator = await get_quiz_generator_service()
+        quiz_generator = get_quiz_generator_service()
         history = await quiz_generator.get_quiz_history(
             user_id=user_id,
             document_id=doc_id
@@ -198,7 +198,7 @@ async def get_quiz_history(
                 "attempts": history
             },
             message="ดึงประวัติการทำแบบทดสอบสำเร็จ",
-            timestamp=datetime.datetime.utcnow().isoformat() + "Z"
+            timestamp=datetime.now(timezone.utc).isoformat() + "Z"
         )
         
     except Exception as e:
@@ -212,7 +212,7 @@ async def get_user_quiz_history(
     """Get all quiz history for user"""
     try:
         # FIX: Get an instance of the quiz generator service
-        quiz_generator = await get_quiz_generator_service()
+        quiz_generator = get_quiz_generator_service()
         history = await quiz_generator.get_quiz_history(user_id=user_id)
         
         return QuizResponse(
@@ -223,7 +223,7 @@ async def get_user_quiz_history(
                 "attempts": history
             },
             message="ดึงประวัติการทำแบบทดสอบทั้งหมดสำเร็จ",
-            timestamp=datetime.datetime.utcnow().isoformat() + "Z"
+            timestamp=datetime.now(timezone.utc).isoformat() + "Z"
         )
         
     except Exception as e:
@@ -238,7 +238,7 @@ async def get_quiz_analytics(
     """Get analytics for a specific quiz"""
     try:
         # FIX: Get an instance of the quiz generator service
-        quiz_generator = await get_quiz_generator_service()
+        quiz_generator = get_quiz_generator_service()
         analytics = await quiz_generator.get_quiz_analytics(quiz_id)
         
         return QuizResponse(
@@ -248,7 +248,7 @@ async def get_quiz_analytics(
                 "analytics": analytics
             },
             message="ดึงข้อมูลวิเคราะห์แบบทดสอบสำเร็จ",
-            timestamp=datetime.datetime.utcnow().isoformat() + "Z"
+            timestamp=datetime.now(timezone.utc).isoformat() + "Z"
         )
         
     except Exception as e:
@@ -263,7 +263,7 @@ async def delete_quiz(
     """Delete a quiz and all associated attempts"""
     try:
         # FIX: Get an instance of the quiz generator service
-        quiz_generator = await get_quiz_generator_service()
+        quiz_generator = get_quiz_generator_service()
         success = await quiz_generator.delete_quiz(quiz_id)
         
         if not success:
@@ -273,7 +273,7 @@ async def delete_quiz(
             success=True,
             data={"quiz_id": quiz_id},
             message="ลบแบบทดสอบสำเร็จ",
-            timestamp=datetime.datetime.utcnow().isoformat() + "Z"
+            timestamp=datetime.now(timezone.utc).isoformat() + "Z"
         )
         
     except HTTPException:
@@ -291,7 +291,7 @@ async def get_questions_by_difficulty(
     """Get questions filtered by difficulty level"""
     try:
         # FIX: Get an instance of the quiz generator service
-        quiz_generator = await get_quiz_generator_service()
+        quiz_generator = get_quiz_generator_service()
         quiz = await quiz_generator.get_quiz(quiz_id)
         
         if not quiz:
@@ -299,14 +299,14 @@ async def get_questions_by_difficulty(
         
         filtered_questions = [
             {
-                "question_id": q.question_id,
-                "question": q.question,
-                "options": q.options,
-                "bloom_level": q.bloom_level,
-                "difficulty": q.difficulty,
-                "points": q.points
+                "question_id": q.get("questionId") or q.get("question_id"),
+                "question": q.get("question"),
+                "options": q.get("options"),
+                "bloom_level": q.get("bloomLevel") or q.get("bloom_level"),
+                "difficulty": q.get("difficulty"),
+                "points": q.get("points")
             }
-            for q in quiz.questions if q.difficulty == level
+            for q in quiz.questions if q.get("difficulty") == level
         ]
         
         return QuizResponse(
@@ -318,7 +318,7 @@ async def get_questions_by_difficulty(
                 "questions": filtered_questions
             },
             message=f"ดึงคำถามระดับ {level} สำเร็จ",
-            timestamp=datetime.datetime.utcnow().isoformat() + "Z"
+            timestamp=datetime.now(timezone.utc).isoformat() + "Z"
         )
         
     except HTTPException:
@@ -336,7 +336,7 @@ async def get_questions_by_bloom_level(
     """Get questions filtered by Bloom's taxonomy level"""
     try:
         # FIX: Get an instance of the quiz generator service
-        quiz_generator = await get_quiz_generator_service()
+        quiz_generator = get_quiz_generator_service()
         quiz = await quiz_generator.get_quiz(quiz_id)
         
         if not quiz:
@@ -344,14 +344,14 @@ async def get_questions_by_bloom_level(
         
         filtered_questions = [
             {
-                "question_id": q.question_id,
-                "question": q.question,
-                "options": q.options,
-                "bloom_level": q.bloom_level,
-                "difficulty": q.difficulty,
-                "points": q.points
+                "question_id": q.get("questionId") or q.get("question_id"),
+                "question": q.get("question"),
+                "options": q.get("options"),
+                "bloom_level": q.get("bloomLevel") or q.get("bloom_level"),
+                "difficulty": q.get("difficulty"),
+                "points": q.get("points")
             }
-            for q in quiz.questions if q.bloom_level == level
+            for q in quiz.questions if q.get("bloomLevel", q.get("bloom_level")) == level
         ]
         
         return QuizResponse(
@@ -363,7 +363,7 @@ async def get_questions_by_bloom_level(
                 "questions": filtered_questions
             },
             message=f"ดึงคำถามระดับ {level} สำเร็จ",
-            timestamp=datetime.datetime.utcnow().isoformat() + "Z"
+            timestamp=datetime.now(timezone.utc).isoformat() + "Z"
         )
         
     except HTTPException:

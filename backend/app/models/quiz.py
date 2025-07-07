@@ -1,17 +1,20 @@
 from pydantic import BaseModel, Field, ConfigDict
 from typing import List, Optional, Dict
-from datetime import datetime
+from datetime import datetime, timezone
 
 class QuizQuestion(BaseModel):
     """Quiz question model"""
-    questionId: str
+    questionId: str = Field(alias="question_id")
     question: str
     options: List[str]
-    correctAnswer: str
+    correctAnswer: str = Field(alias="correct_answer")
     explanation: str
-    bloomLevel: str  # remember, understand, apply, analyze, evaluate, create
+    bloomLevel: str = Field(alias="bloom_level")  # remember, understand, apply, analyze, evaluate, create
     difficulty: str = "medium"  # easy, medium, hard
     points: int = 1
+    
+    class Config:
+        populate_by_name = True
 
 class QuizModel(BaseModel):
     """Quiz model for MongoDB"""
@@ -29,8 +32,8 @@ class QuizModel(BaseModel):
     time_limit: Optional[int] = Field(None, description="Time limit in minutes")
     attempts_allowed: int = Field(default=-1, description="Number of attempts allowed")
     bloom_distribution: Optional[Dict[str, int]] = Field(None, description="Bloom taxonomy distribution")
-    created_at: datetime = Field(default_factory=datetime.utcnow)
-    updated_at: datetime = Field(default_factory=datetime.utcnow)
+    created_at: datetime = Field(default_factory=lambda: datetime.now(timezone.utc))
+    updated_at: datetime = Field(default_factory=lambda: datetime.now(timezone.utc))
 
 class QuizAttempt(BaseModel):
     """Quiz attempt model for MongoDB"""
@@ -49,15 +52,18 @@ class QuizAttempt(BaseModel):
     time_taken: int = Field(..., description="Time taken in seconds")
     bloom_scores: Dict[str, float] = Field(default_factory=dict, description="Bloom taxonomy scores")
     question_results: List[Dict] = Field(default_factory=list, description="Question-by-question results")
-    completed_at: datetime = Field(default_factory=datetime.utcnow)
+    completed_at: datetime = Field(default_factory=lambda: datetime.now(timezone.utc))
 
 class QuizGenerateRequest(BaseModel):
     """Request for generating a quiz"""
-    questionCount: int = 10
-    bloomDistribution: Optional[Dict[str, int]] = None
+    questionCount: int = Field(default=10, alias="question_count")
+    bloomDistribution: Optional[Dict[str, int]] = Field(default=None, alias="bloom_distribution")
     difficulty: str = "medium"
-    timeLimit: Optional[int] = None
-    includeExplanations: bool = True
+    timeLimit: Optional[int] = Field(default=None, alias="time_limit")
+    includeExplanations: bool = Field(default=True, alias="include_explanations")
+    
+    class Config:
+        populate_by_name = True
 
 class QuizSubmission(BaseModel):
     answers: List[str]

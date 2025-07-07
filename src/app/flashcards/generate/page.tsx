@@ -747,7 +747,7 @@ export default function GenerateFlashcardsPage() {
               <DialogDescription className="text-base text-gray-600">
                 สร้างแฟลชการ์ดจำนวน{' '}
                 <span className="font-semibold text-purple-600">
-                  {generatedFlashcards.flashcards?.length || generatedFlashcards.flashcards_generated || 0} ใบ
+                  {generatedFlashcards?.flashcards?.length || generatedFlashcards?.flashcards_generated || 0} ใบ
                 </span>{' '}
                 เรียบร้อยแล้ว พร้อมเริ่มทบทวนได้เลย
               </DialogDescription>
