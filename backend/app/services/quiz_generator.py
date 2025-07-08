@@ -681,6 +681,57 @@ class QuizGeneratorService:
         self.document_collection = mongodb_manager.get_documents_collection()
         self.advanced_generator = AdvancedQuizGenerator()
 
+    def _parse_llm_json_response(self, response: str) -> List[Dict[str, Any]]:
+        """
+        A robust parser to extract and validate multiple JSON objects from a raw LLM response string.
+        This function is designed to handle common LLM formatting errors, such as:
+        - Missing commas between objects.
+        - Extraneous text before or after the main JSON array.
+        - Trailing commas.
+        """
+        try:
+            import json
+            import re
+
+            # 1. Find the main JSON array in the response string.
+            # This helps to discard any introductory or concluding text from the LLM.
+            match = re.search(r'\[.*\]', response, re.DOTALL)
+            if not match:
+                logger.warning("Could not find a JSON array (e.g., '[...]') in the LLM response.")
+                return []
+            
+            json_string = match.group(0)
+
+            # 2. Manually extract individual JSON objects.
+            # This is more robust than a simple split, as it respects nested structures.
+            objects = []
+            nesting_level = 0
+            start_index = -1
+
+            for i, char in enumerate(json_string):
+                if char == '{':
+                    if nesting_level == 0:
+                        start_index = i
+                    nesting_level += 1
+                elif char == '}':
+                    nesting_level -= 1
+                    if nesting_level == 0 and start_index != -1:
+                        # We've found a complete top-level object.
+                        obj_str = json_string[start_index:i+1]
+                        try:
+                            # Validate that the extracted string is indeed a valid JSON object.
+                            parsed_obj = json.loads(obj_str)
+                            objects.append(parsed_obj)
+                        except json.JSONDecodeError:
+                            logger.warning(f"Failed to parse an individual JSON object: {obj_str}")
+                        start_index = -1
+            
+            return objects
+
+        except Exception as e:
+            logger.error(f"A critical error occurred during advanced JSON parsing: {e}")
+            return []
+
     async def generate_quiz_simple(
         self,
         document_id: str,
@@ -700,43 +751,53 @@ class QuizGeneratorService:
             # Use the reliable AI model for quiz generation
             ai_client = together_ai
             
-            # Generate quiz questions using the flashcard-style approach
-            system_prompt = """คุณเป็นผู้เชี่ยวชาญในการสร้างข้อสอบที่มีคุณภาพสูง
-            สร้างคำถามแบบปรนัยจากเนื้อหาที่ให้มา โดยใช้หลัก Bloom's Taxonomy
-            แต่ละคำถามต้องมี 4 ตัวเลือก (A, B, C, D) และคำอธิบายที่ชัดเจน
+            system_prompt = """คุณคือผู้เชี่ยวชาญด้านการสร้างชุดคำถามปรนัย (Multiple Choice) คุณภาพสูงตามหลักการของ Bloom's Taxonomy
+หน้าที่ของคุณคือสร้างคำถามจากเนื้อหาที่กำหนดให้ โดยต้องปฏิบัติตามข้อกำหนดต่อไปนี้อย่างเคร่งครัด:
+1.  **รูปแบบผลลัพธ์ (Output Format)**: คุณต้องตอบกลับเป็น JSON array ที่สมบูรณ์แบบ (valid JSON array) เท่านั้น ห้ามมีข้อความอื่นใดๆ นอกเหนือจาก JSON array โดยเด็ดขาด
+2.  **โครงสร้างคำถาม**: แต่ละคำถามใน array ต้องเป็น JSON object ที่มี key ดังต่อไปนี้: "question", "options", "correct_answer", "explanation", "bloom_level", "difficulty"
+3.  **ตัวเลือก (Options)**: ต้องมี 4 ตัวเลือกเสมอ และต้องอยู่ในรูปแบบ array ของ string เช่น `["A) ตัวเลือก 1", "B) ตัวเลือก 2", "C) ตัวเลือก 3", "D) ตัวเลือก 4"]`
+4.  **คำตอบที่ถูกต้อง (Correct Answer)**: ต้องเป็นเพียงตัวอักษรของตัวเลือกที่ถูกต้องเท่านั้น เช่น "A", "B", "C", หรือ "D"
+5.  **ความหลากหลาย**: พยายามสร้างคำถามให้ครอบคลุมระดับต่างๆ ของ Bloom's Taxonomy ที่ระบุไว้ใน prompt
+6.  **ความถูกต้อง**: เนื้อหาของคำถาม, ตัวเลือก, และคำอธิบาย ต้องถูกต้องตามเนื้อหาที่อ้างอิง"""
             
-            ระดับ Bloom's Taxonomy:
-            - remember (จำ): ข้อเท็จจริง คำนิยาม
-            - understand (เข้าใจ): อธิบาย สรุป ตีความ  
-            - apply (ประยุกต์): ใช้ความรู้ในสถานการณ์ใหม่
-            - analyze (วิเคราะห์): แยกแยะ เปรียบเทียบ
-            - evaluate (ประเมิน): ตัดสิน วิจารณ์
-            - create (สร้างสรรค์): สร้าง ออกแบบ วางแผน
-            
-            ให้ตอบในรูปแบบ JSON array เท่านั้น"""
-            
-            prompt = f"""สร้างข้อสอบ {request.questionCount} ข้อจากเนื้อหาต่อไปนี้:
+            prompt = f"""สร้างชุดคำถามปรนัยจำนวน {request.questionCount} ข้อจากเนื้อหาต่อไปนี้:
 
 {content}
 
-ให้ตอบในรูปแบบ JSON array:
+---
+**ข้อกำหนดเพิ่มเติม:**
+-   สร้างคำถามที่มีระดับความยาก: `{request.difficulty}`
+-   ตรวจสอบให้แน่ใจว่าผลลัพธ์เป็น JSON array ที่สมบูรณ์เท่านั้น
+
+**ตัวอย่างรูปแบบที่ต้องการ:**
+```json
 [
   {{
-    "question": "คำถาม",
-    "options": ["A) ตัวเลือก 1", "B) ตัวเลือก 2", "C) ตัวเลือก 3", "D) ตัวเลือก 4"],
-    "correct_answer": "A",
-    "explanation": "คำอธิบาย",
+    "question": "ข้อใดคือเมืองหลวงของประเทศไทย?",
+    "options": ["A) เชียงใหม่", "B) ภูเก็ต", "C) กรุงเทพมหานคร", "D) ขอนแก่น"],
+    "correct_answer": "C",
+    "explanation": "กรุงเทพมหานครเป็นเมืองหลวงของประเทศไทยตามที่ระบุไว้ในข้อมูลทั่วไป",
     "bloom_level": "remember",
+    "difficulty": "easy"
+  }},
+  {{
+    "question": "คำถามต่อไป...",
+    "options": ["A) ...", "B) ...", "C) ...", "D) ..."],
+    "correct_answer": "A",
+    "explanation": "คำอธิบายสำหรับคำถามนี้",
+    "bloom_level": "understand",
     "difficulty": "medium"
   }}
-]"""
+]
+```"""
 
             # Generate questions with retry mechanism
             response = await ai_client.generate_response(
                 prompt=prompt,
                 system_prompt=system_prompt,
-                max_tokens=1500,
-                retry_count=3
+                max_tokens=3000,
+                retry_count=3,
+                temperature=0.6
             )
             
             # Parse response
@@ -744,25 +805,11 @@ class QuizGeneratorService:
             total_points = 0
             
             try:
-                import json
-                import re
+                # Use the new robust parser
+                raw_questions = self._parse_llm_json_response(response)
                 
-                # Clean up the response before parsing
-                cleaned_response = response.strip()
-                
-                # Try to extract JSON array if embedded in text
-                if not cleaned_response.startswith('['):
-                    json_match = re.search(r'\[.*\]', cleaned_response, re.DOTALL)
-                    if json_match:
-                        cleaned_response = json_match.group()
-                
-                # Fix common JSON issues
-                cleaned_response = self._fix_json_response(cleaned_response)
-                
-                raw_questions = json.loads(cleaned_response)
-                
-                if not isinstance(raw_questions, list):
-                    raise ValueError("Response is not a list")
+                if not raw_questions:
+                    raise ValueError("The robust parser could not extract any valid questions from the AI response.")
                 
                 for i, q in enumerate(raw_questions[:request.questionCount]):
                     if not isinstance(q, dict):
@@ -783,9 +830,9 @@ class QuizGeneratorService:
                     questions.append(question)
                     total_points += question.points
                     
-            except (json.JSONDecodeError, ValueError, Exception) as e:
+            except Exception as e:
                 logger.error(f"Failed to parse quiz response: {e}")
-                logger.debug(f"Raw response: {response[:500]}...")
+                logger.debug(f"Raw response from AI: {response[:500]}...")
                 # Generate fallback questions
                 questions = self._generate_fallback_quiz(request.questionCount, request.difficulty)
                 total_points = sum(q.points for q in questions)
@@ -827,6 +874,7 @@ class QuizGeneratorService:
         except Exception as e:
             logger.error(f"Error generating simple quiz: {e}")
             raise ModelError(f"Failed to generate simple quiz: {str(e)}")
+
 
     async def generate_quiz(
         self,
@@ -935,12 +983,12 @@ class QuizGeneratorService:
                 
                 # Generate enhanced explanations for each question
                 enhanced_questions = await self.advanced_generator.generate_explanations(
-                    questions=[q for q in quiz.questions],
+                    questions=[q.dict() for q in quiz.questions],
                     content=content
                 )
                 
                 # Update quiz with enhanced explanations
-                quiz.questions = enhanced_questions
+                quiz.questions = [QuizQuestion(**q) for q in enhanced_questions]
                 
                 # Update in database
                 await self.quiz_collection.update_one(
@@ -961,56 +1009,7 @@ class QuizGeneratorService:
         if not quiz:
             return {"error": "Quiz not found"}
         
-        return await self.advanced_generator.validate_quiz_quality(quiz.questions)
-
-    def _fix_json_response(self, response: str) -> str:
-        """Fix common JSON formatting issues"""
-        try:
-            import re
-            
-            # Remove trailing commas before } or ]
-            response = re.sub(r',(\s*[}\]])', r'\1', response)
-            
-            # Fix unterminated strings by adding closing quotes
-            response = self._fix_unterminated_strings(response)
-            
-            # Escape unescaped quotes in strings
-            response = self._escape_unescaped_quotes(response)
-            
-            return response
-        except Exception as e:
-            logger.warning(f"Failed to fix JSON response: {e}")
-            return response
-    
-    def _fix_unterminated_strings(self, text: str) -> str:
-        """Attempt to fix unterminated strings in JSON"""
-        try:
-            # Simple heuristic: if we have an odd number of quotes, add one at the end
-            quote_count = text.count('"')
-            if quote_count % 2 != 0:
-                # Find the last occurrence of a quote and see if it's properly closed
-                last_quote_idx = text.rfind('"')
-                if last_quote_idx > 0:
-                    # Check if this quote is escaped
-                    if text[last_quote_idx - 1] != '\\':
-                        # Add closing quote before the last closing bracket
-                        bracket_indices = [i for i, c in enumerate(text) if c in ']}']
-                        if bracket_indices:
-                            insert_pos = bracket_indices[-1]
-                            text = text[:insert_pos] + '"' + text[insert_pos:]
-            return text
-        except Exception:
-            return text
-    
-    def _escape_unescaped_quotes(self, text: str) -> str:
-        """Escape unescaped quotes within string values"""
-        try:
-            import re
-            # This is a simple approach - could be improved for complex cases
-            # Replace quotes that are not properly escaped and are within strings
-            return text
-        except Exception:
-            return text
+        return await self.advanced_generator.validate_quiz_quality([q.dict() for q in quiz.questions])
 
     def _get_points_for_bloom_level(self, bloom_level: str) -> int:
         """Get points based on Bloom's taxonomy level"""
@@ -1046,28 +1045,35 @@ class QuizGeneratorService:
         if not quiz:
             raise ValueError(f"Quiz {quiz_id} not found")
 
+        # Assuming 'attempts_allowed' is a field in your QuizModel, otherwise default to 1
+        attempts_allowed = getattr(quiz, 'attempts_allowed', 1)
+
         attempts_count = await self.attempt_collection.count_documents({
             "quiz_id": quiz_id,
             "user_id": user_id
         })
 
-        if attempts_count >= quiz.attempts_allowed:
+        if attempts_allowed > 0 and attempts_count >= attempts_allowed:
             raise ValueError("Maximum attempts exceeded")
 
         results = self._calculate_results(quiz, submission)
         
-        attempt = QuizAttempt(
-            attempt_id=str(uuid.uuid4()),
-            quiz_id=quiz_id,
-            user_id=user_id,
-            answers=submission.answers,
-            score=results["score"],
-            total_points=results["total_points"],
-            percentage=results["percentage"],
-            time_taken=submission.time_taken,
-            bloom_scores=results["bloom_scores"],
-            question_results=results["question_results"]
-        )
+        attempt_doc = {
+            "attempt_id": str(uuid.uuid4()),
+            "quiz_id": quiz_id,
+            "user_id": user_id,
+            "answers": submission.answers,
+            "score": results["score"],
+            "total_points": results["total_points"],
+            "percentage": results["percentage"],
+            "time_taken": submission.time_taken,
+            "bloom_scores": results["bloom_scores"],
+            "question_results": results["question_results"],
+            "completed_at": datetime.now(timezone.utc)
+        }
+
+
+        attempt = QuizAttempt(**attempt_doc)
 
         await self.attempt_collection.insert_one(attempt.dict(by_alias=True))
         recommendations = self._generate_recommendations(results)
@@ -1092,38 +1098,56 @@ class QuizGeneratorService:
         bloom_totals = {}
         question_results = []
 
-        for i, question_data in enumerate(quiz.questions):
-            question = QuizQuestion(**question_data)
-            user_answer = submission.answers[i] if i < len(submission.answers) else ""
-            is_correct = user_answer.strip().upper() == question.correct_answer.strip().upper()
-            points_earned = question.points if is_correct else 0
+        # Handle answers as a list of strings in the same order as questions
+        user_answers = submission.answers if isinstance(submission.answers, list) else []
+        
+        for i, question in enumerate(quiz.questions):
+            user_answer = user_answers[i] if i < len(user_answers) else ""
+            
+            # Handle both dict and object formats
+            if isinstance(question, dict):
+                correct_answer = question.get("correctAnswer") or question.get("correct_answer", "")
+                points = question.get("points", 1)
+                bloom_level = question.get("bloomLevel") or question.get("bloom_level", "remember")
+                question_id = question.get("questionId") or question.get("question_id", "")
+                question_text = question.get("question", "")
+                explanation = question.get("explanation", "")
+            else:
+                correct_answer = getattr(question, 'correctAnswer', "")
+                points = getattr(question, 'points', 1)
+                bloom_level = getattr(question, 'bloomLevel', "remember")
+                question_id = getattr(question, 'questionId', "")
+                question_text = getattr(question, 'question', "")
+                explanation = getattr(question, 'explanation', "")
+            
+            is_correct = user_answer.strip().upper() == correct_answer.strip().upper()
+            points_earned = points if is_correct else 0
 
-            total_points += question.points
+            total_points += points
             earned_points += points_earned
 
-            bloom_level = question.bloom_level
             if bloom_level not in bloom_scores:
                 bloom_scores[bloom_level] = 0
                 bloom_totals[bloom_level] = 0
             
             bloom_scores[bloom_level] += points_earned
-            bloom_totals[bloom_level] += question.points
+            bloom_totals[bloom_level] += points
 
             question_results.append({
-                "question_id": question.question_id,
-                "question": question.question,
+                "question_id": question_id,
+                "question": question_text,
                 "user_answer": user_answer,
-                "correct_answer": question.correct_answer,
+                "correct_answer": correct_answer,
                 "is_correct": is_correct,
                 "points_earned": points_earned,
-                "points_possible": question.points,
+                "points_possible": points,
                 "bloom_level": bloom_level,
-                "explanation": question.explanation
+                "explanation": explanation
             })
 
         bloom_percentages = {}
         for level in bloom_scores:
-            if bloom_totals[level] > 0:
+            if bloom_totals.get(level, 0) > 0:
                 bloom_percentages[level] = (bloom_scores[level] / bloom_totals[level]) * 100
             else:
                 bloom_percentages[level] = 0
@@ -1137,6 +1161,7 @@ class QuizGeneratorService:
             "bloom_scores": bloom_percentages,
             "question_results": question_results
         }
+
 
     def _generate_recommendations(self, results: Dict[str, Any]) -> List[str]:
         """Generate study recommendations based on results"""
@@ -1173,12 +1198,13 @@ class QuizGeneratorService:
         """Get quiz attempt history for user"""
         query = {"user_id": user_id}
         if document_id:
-            quiz_ids = [quiz["quiz_id"] async for quiz in self.quiz_collection.find({"document_id": document_id})]
+            quizzes = self.quiz_collection.find({"document_id": document_id})
+            quiz_ids = [str(q["_id"]) async for q in quizzes]
             query["quiz_id"] = {"$in": quiz_ids}
 
         attempts = []
         async for attempt in self.attempt_collection.find(query).sort("completed_at", -1):
-            quiz = await self.quiz_collection.find_one({"quiz_id": attempt["quiz_id"]})
+            quiz = await self.quiz_collection.find_one({"_id": ObjectId(attempt["quiz_id"])})
             attempt_data = {
                 "attempt_id": attempt["attempt_id"],
                 "quiz_id": attempt["quiz_id"],
@@ -1187,7 +1213,7 @@ class QuizGeneratorService:
                 "total_points": attempt["total_points"],
                 "percentage": attempt["percentage"],
                 "time_taken": attempt["time_taken"],
-                "completed_at": attempt["completed_at"]
+                "completed_at": attempt["completed_at"].isoformat()
             }
             attempts.append(attempt_data)
         return attempts
@@ -1233,7 +1259,7 @@ class QuizGeneratorService:
             # Calculate analytics
             total_attempts = len(attempts)
             scores = [attempt["percentage"] for attempt in attempts]
-            average_score = sum(scores) / len(scores)
+            average_score = sum(scores) / len(scores) if scores else 0
             
             # Bloom's taxonomy performance
             bloom_performance = {}
@@ -1246,13 +1272,13 @@ class QuizGeneratorService:
             # Calculate averages for each bloom level
             bloom_averages = {}
             for level, scores in bloom_performance.items():
-                bloom_averages[level] = sum(scores) / len(scores)
+                bloom_averages[level] = sum(scores) / len(scores) if scores else 0
             
             # Time analytics
-            times = [attempt["time_taken"] for attempt in attempts]
-            avg_time = sum(times) / len(times)
-            min_time = min(times)
-            max_time = max(times)
+            times = [attempt["time_taken"] for attempt in attempts if "time_taken" in attempt]
+            avg_time = sum(times) / len(times) if times else 0
+            min_time = min(times) if times else 0
+            max_time = max(times) if times else 0
             
             return {
                 "total_attempts": total_attempts,
