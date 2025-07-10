@@ -11,6 +11,7 @@ import { Flashcard } from "@/types/api"
 import { apiService } from "@/lib/api"
 import { Loader2, AlertCircle, ArrowLeft, RefreshCw, Lightbulb, Check, Brain, Play, Eye, Calendar, BookOpen, Clock } from "lucide-react"
 import Link from "next/link"
+import { AuthWrapper } from "@/components/providers/auth-wrpper"
 
 interface FlashcardData {
   card_id: string
@@ -181,7 +182,8 @@ export default function FlashcardPage() {
   const dueCount = flashcards.filter(card => card.is_due).length
 
   return (
-    <div className="min-h-screen bg-gray-50">
+    <AuthWrapper>
+      <div className="min-h-screen bg-gray-50">
       {/* Navigation */}
       <nav className="bg-white border-b">
         <div className="container mx-auto px-4 py-4 flex items-center justify-between">
@@ -390,6 +392,7 @@ export default function FlashcardPage() {
           </Tabs>
         </div>
       </div>
-    </div>
+      </div>
+    </AuthWrapper>
   )
 }

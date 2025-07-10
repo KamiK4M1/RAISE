@@ -9,6 +9,7 @@ import { Document } from "@/types/api"
 import { apiService } from "@/lib/api"
 import { FileText, BrainCircuit, Puzzle, Loader2, AlertCircle, ArrowLeft, Trash2 } from "lucide-react"
 import Link from "next/link"
+import { AuthWrapper } from "@/components/providers/auth-wrpper"
 
 export default function DocumentPage() {
   const params = useParams()
@@ -79,14 +80,17 @@ export default function DocumentPage() {
 
   if (loading) {
     return (
-      <div className="flex justify-center items-center min-h-screen">
+      <AuthWrapper>
+        <div className="flex justify-center items-center min-h-screen">
         <Loader2 className="h-16 w-16 animate-spin text-blue-600" />
-      </div>
+        </div>
+      </AuthWrapper>
     )
   }
 
   return (
-    <div className="min-h-screen bg-gray-50">
+    <AuthWrapper>
+      <div className="min-h-screen bg-gray-50">
        <nav className="bg-white border-b">
         <div className="container mx-auto px-4 py-4 flex items-center">
           <Link href="/dashboard">
@@ -164,6 +168,7 @@ export default function DocumentPage() {
           )}
         </div>
       </div>
-    </div>
+      </div>
+    </AuthWrapper>
   )
 }

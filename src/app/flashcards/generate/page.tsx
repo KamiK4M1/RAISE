@@ -45,6 +45,7 @@ import {
 import Link from "next/link"
 import { apiService } from "@/lib/api"
 import { Document } from "@/types/api"
+import { AuthWrapper } from "@/components/providers/auth-wrpper"
 
 export default function GenerateFlashcardsPage() {
   const router = useRouter()
@@ -165,7 +166,8 @@ export default function GenerateFlashcardsPage() {
   }
 
   return (
-    <div className="min-h-screen bg-gradient-to-br from-gray-50 to-purple-50">
+    <AuthWrapper>
+      <div className="min-h-screen bg-gradient-to-br from-gray-50 to-purple-50">
       {/* Navigation */}
       <nav className="bg-white/80 backdrop-blur-sm border-b sticky top-0 z-50">
         <div className="container mx-auto px-4 py-4 flex items-center justify-between">
@@ -772,6 +774,7 @@ export default function GenerateFlashcardsPage() {
           </motion.div>
         </DialogContent>
       </Dialog>
-    </div>
+      </div>
+    </AuthWrapper>
   )
 }

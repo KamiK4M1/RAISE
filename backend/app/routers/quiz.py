@@ -130,14 +130,14 @@ async def submit_quiz(
         return QuizResponse(
             success=True,
             data={
-                "attempt_id": results.attempt_id,
-                "quiz_id": results.quiz_id,
+                "attempt_id": results.attemptId,
+                "quiz_id": results.quizId,
                 "score": results.score,
-                "total_points": results.total_points,
+                "total_points": results.totalPoints,
                 "percentage": results.percentage,
-                "time_taken": results.time_taken,
-                "bloom_scores": results.bloom_scores,
-                "question_results": results.question_results,
+                "time_taken": results.timeTaken,
+                "bloom_scores": results.bloomScores,
+                "question_results": results.questionResults,
                 "recommendations": results.recommendations
             },
             message=f"ส่งแบบทดสอบสำเร็จ คะแนน {results.percentage:.1f}%",

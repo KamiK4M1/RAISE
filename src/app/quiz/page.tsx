@@ -9,6 +9,7 @@ import { Brain, BookOpen, Target, Clock, ArrowRight, Upload } from "lucide-react
 import Link from "next/link"
 import { apiService } from "@/lib/api"
 import { Document } from "@/types/api"
+import { AuthWrapper } from "@/components/providers/auth-wrpper"
 
 export default function QuizPage() {
   const [documents, setDocuments] = useState<Document[]>([])
@@ -122,29 +123,30 @@ export default function QuizPage() {
   }
 
   return (
-    <div className="min-h-screen bg-gradient-to-br from-gray-50 to-blue-50">
-      {/* Navigation */}
-      <nav className="bg-white/80 backdrop-blur-sm border-b sticky top-0 z-50">
-        <div className="container mx-auto px-4 py-4 flex items-center justify-between">
-          <div className="flex items-center space-x-4">
-            <Link href="/dashboard">
-              <Button variant="ghost" size="sm" className="text-gray-600 hover:text-gray-900">
-                <ArrowRight className="h-4 w-4 mr-2 rotate-180" />
-                กลับ
-              </Button>
-            </Link>
-            <div className="flex items-center space-x-2">
-              <div className="p-2 bg-gradient-to-r from-blue-600 to-purple-600 rounded-lg">
-                <Brain className="h-6 w-6 text-white" />
-              </div>
-              <div>
-                <h1 className="text-xl font-bold text-gray-900">แบบทดสอบ AI</h1>
-                <p className="text-sm text-gray-600">ครอบคลุมทุกระดับ Bloom's Taxonomy</p>
+    <AuthWrapper>
+      <div className="min-h-screen bg-gradient-to-br from-gray-50 to-blue-50">
+        {/* Navigation */}
+        <nav className="bg-white/80 backdrop-blur-sm border-b sticky top-0 z-50">
+          <div className="container mx-auto px-4 py-4 flex items-center justify-between">
+            <div className="flex items-center space-x-4">
+              <Link href="/dashboard">
+                <Button variant="ghost" size="sm" className="text-gray-600 hover:text-gray-900">
+                  <ArrowRight className="h-4 w-4 mr-2 rotate-180" />
+                  กลับ
+                </Button>
+              </Link>
+              <div className="flex items-center space-x-2">
+                <div className="p-2 bg-gradient-to-r from-blue-600 to-purple-600 rounded-lg">
+                  <Brain className="h-6 w-6 text-white" />
+                </div>
+                <div>
+                  <h1 className="text-xl font-bold text-gray-900">แบบทดสอบ AI</h1>
+                  <p className="text-sm text-gray-600">ครอบคลุมทุกระดับ Bloom's Taxonomy</p>
+                </div>
               </div>
             </div>
           </div>
-        </div>
-      </nav>
+        </nav>
 
       <div className="container mx-auto px-4 py-8">
         <div className="max-w-4xl mx-auto">
@@ -262,6 +264,7 @@ export default function QuizPage() {
           </div>
         </div>
       </div>
-    </div>
+      </div>
+    </AuthWrapper>
   )
 }

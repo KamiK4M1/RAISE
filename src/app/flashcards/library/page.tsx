@@ -34,6 +34,7 @@ import {
 } from "lucide-react"
 import Link from "next/link"
 import { apiService } from "@/lib/api"
+import { AuthWrapper } from "@/components/providers/auth-wrpper"
 
 interface FlashcardSet {
   document_id: string
@@ -273,7 +274,8 @@ export default function FlashcardLibraryPage() {
   }
 
   return (
-    <div className="min-h-screen bg-gray-50">
+    <AuthWrapper>
+      <div className="min-h-screen bg-gray-50">
       {/* Navigation */}
       <nav className="bg-white border-b sticky top-0 z-40">
         <div className="container mx-auto px-4 py-4 flex items-center justify-between">
@@ -565,6 +567,7 @@ export default function FlashcardLibraryPage() {
           </div>
         </DialogContent>
       </Dialog>
-    </div>
+      </div>
+    </AuthWrapper>
   )
 }

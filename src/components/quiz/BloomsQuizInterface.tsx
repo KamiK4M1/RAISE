@@ -142,7 +142,11 @@ export function BloomsQuizInterface({ documentId, onBack }: BloomsQuizInterfaceP
 
   // Generate quiz with Bloom's Taxonomy distribution
   useEffect(() => {
+    let abortController = new AbortController()
+    
     const loadQuiz = async () => {
+      if (abortController.signal.aborted) return
+      
       try {
         setLoading(true)
         setError(null)
@@ -162,6 +166,8 @@ export function BloomsQuizInterface({ documentId, onBack }: BloomsQuizInterfaceP
           include_explanations: true
         })
         
+        if (abortController.signal.aborted) return
+        
         if (response.success && response.data) {
           setQuiz(response.data)
           setTimeLeft(response.data.time_limit || 1200)
@@ -171,15 +177,22 @@ export function BloomsQuizInterface({ documentId, onBack }: BloomsQuizInterfaceP
           throw new Error(response.message || 'Failed to generate quiz')
         }
       } catch (error) {
+        if (abortController.signal.aborted) return
         console.error('Error generating quiz:', error)
         setError(error instanceof Error ? error.message : 'ไม่สามารถสร้างแบบทดสอบได้')
       } finally {
-        setLoading(false)
+        if (!abortController.signal.aborted) {
+          setLoading(false)
+        }
       }
     }
 
     if (documentId) {
       loadQuiz()
+    }
+
+    return () => {
+      abortController.abort()
     }
   }, [documentId])
 

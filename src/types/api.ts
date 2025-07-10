@@ -135,6 +135,18 @@ export interface ChatResponse {
   }>;
   confidence: number;
   session_id?: string;
+  response_time?: number;
+  sources_count?: number;
+  total_chunks_found?: number;
+}
+
+export interface ChatSession {
+  session_id: string;
+  document_id: string;
+  document_title: string;
+  message_count: number;
+  created_at: string;
+  last_activity: string;
 }
 
 export interface UserAnalytics {

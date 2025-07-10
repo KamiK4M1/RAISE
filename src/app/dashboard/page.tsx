@@ -30,6 +30,8 @@ import {
 import Link from "next/link"
 import { apiService } from "@/lib/api"
 import { Document } from "@/types/api"
+import { AuthWrapper } from "@/components/providers/auth-wrpper"
+import { signOut } from "next-auth/react"
 
 
 export default function DashboardPage() {
@@ -57,13 +59,20 @@ export default function DashboardPage() {
     setIsLoggingOut(true)
     
     try {
-      await apiService.logout()
+      // Clear API token first
+      apiService.setAuthToken(null)
+      
+      // Then sign out from NextAuth
+      await signOut({ 
+        callbackUrl: '/login',
+        redirect: true 
+      })
     } catch (error) {
       console.error('Logout error:', error)
       // Even if logout fails, clear local storage and redirect
       if (typeof window !== 'undefined') {
         localStorage.removeItem('auth_token')
-        window.location.href = '/login'
+        await signOut({ callbackUrl: '/login', redirect: true })
       }
     } finally {
       setIsLoggingOut(false)
@@ -190,7 +199,8 @@ export default function DashboardPage() {
   }
 
   return (
-    <div className="min-h-screen bg-gray-50">
+    <AuthWrapper>
+      <div className="min-h-screen bg-gray-50">
       {/* Navigation */}
       <nav className="bg-white border-b sticky top-0 z-50">
         <div className="container mx-auto px-4 py-4 flex items-center justify-between">
@@ -575,6 +585,7 @@ export default function DashboardPage() {
           </DialogFooter>
         </DialogContent>
       </Dialog>
-    </div>
+      </div>
+    </AuthWrapper>
   )
 }

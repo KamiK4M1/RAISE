@@ -7,6 +7,7 @@ import { QuizResults } from "@/components/quiz/QuizResults"
 import { Brain, XCircle } from "lucide-react"
 import { Button } from "@/components/ui/button"
 import Link from "next/link"
+import { AuthWrapper } from "@/components/providers/auth-wrpper"
 
 export default function FlashcardQuizPage() {
   const {
@@ -38,7 +39,8 @@ export default function FlashcardQuizPage() {
   // Error state
   if (error && quizMode === 'setup') {
     return (
-      <div className="min-h-screen bg-gray-50 flex items-center justify-center">
+      <AuthWrapper>
+        <div className="min-h-screen bg-gray-50 flex items-center justify-center">
         <div className="text-center max-w-md">
           <XCircle className="h-12 w-12 text-red-600 mx-auto mb-4" />
           <h2 className="text-xl font-semibold text-gray-900 mb-2">Quiz Error</h2>
@@ -50,7 +52,8 @@ export default function FlashcardQuizPage() {
             </Link>
           </div>
         </div>
-      </div>
+        </div>
+      </AuthWrapper>
     )
   }
 
@@ -58,65 +61,77 @@ export default function FlashcardQuizPage() {
   switch (quizMode) {
     case 'setup':
       return (
-        <QuizSetup
-          onStartQuiz={startQuiz}
-          loading={generatingQuiz}
-        />
+        <AuthWrapper>
+          <QuizSetup
+            onStartQuiz={startQuiz}
+            loading={generatingQuiz}
+          />
+        </AuthWrapper>
       )
 
     case 'session':
       if (flashcards.length === 0) {
         return (
-          <div className="min-h-screen bg-gray-50 flex items-center justify-center">
+          <AuthWrapper>
+            <div className="min-h-screen bg-gray-50 flex items-center justify-center">
             <div className="text-center">
               <Brain className="h-12 w-12 text-blue-600 mx-auto mb-4 animate-spin" />
               <p className="text-gray-600">Preparing your quiz...</p>
             </div>
-          </div>
+            </div>
+          </AuthWrapper>
         )
       }
 
       return (
-        <FlashcardQuizSession
-          flashcards={flashcards}
-          onComplete={completeQuiz}
-          onExit={exitQuiz}
-          timeLimit={quizOptions?.time_limit}
-          title="Flashcard Quiz"
-        />
+        <AuthWrapper>
+          <FlashcardQuizSession
+            flashcards={flashcards}
+            onComplete={completeQuiz}
+            onExit={exitQuiz}
+            timeLimit={quizOptions?.time_limit}
+            title="Flashcard Quiz"
+          />
+        </AuthWrapper>
       )
 
     case 'results':
       if (!sessionResults) {
         return (
-          <div className="min-h-screen bg-gray-50 flex items-center justify-center">
+          <AuthWrapper>
+            <div className="min-h-screen bg-gray-50 flex items-center justify-center">
             <div className="text-center">
               <XCircle className="h-12 w-12 text-gray-600 mx-auto mb-4" />
               <p className="text-gray-600 mb-4">No results available</p>
               <Button onClick={goToSetup}>Start New Quiz</Button>
             </div>
-          </div>
+            </div>
+          </AuthWrapper>
         )
       }
 
       return (
-        <QuizResults
-          results={sessionResults}
-          onRetry={handleRetryQuiz}
-          onBackToSetup={resetQuiz}
-          title="Flashcard Quiz Results"
-        />
+        <AuthWrapper>
+          <QuizResults
+            results={sessionResults}
+            onRetry={handleRetryQuiz}
+            onBackToSetup={resetQuiz}
+            title="Flashcard Quiz Results"
+          />
+        </AuthWrapper>
       )
 
     default:
       return (
-        <div className="min-h-screen bg-gray-50 flex items-center justify-center">
+        <AuthWrapper>
+          <div className="min-h-screen bg-gray-50 flex items-center justify-center">
           <div className="text-center">
             <Brain className="h-12 w-12 text-gray-600 mx-auto mb-4" />
             <p className="text-gray-600 mb-4">Something went wrong</p>
             <Button onClick={resetQuiz}>Reset Quiz</Button>
           </div>
-        </div>
+          </div>
+        </AuthWrapper>
       )
   }
 }

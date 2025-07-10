@@ -132,6 +132,46 @@ class TogetherAIClient:
         self.max_tokens = settings.max_tokens
         self.temperature = settings.temperature
 
+    def _generate_mock_response(self, prompt: str, system_prompt: Optional[str] = None) -> str:
+        """Generate a mock response when Together AI is not available"""
+        # Check if this is a Q&A request based on the prompt structure
+        if "คำถาม:" in prompt and "เนื้อหาอ้างอิง:" in prompt:
+            # Extract the question from the prompt
+            question_parts = prompt.split("คำถาม:")
+            if len(question_parts) > 1:
+                question_line = question_parts[1].split("\n")[0].strip()
+                
+                # Extract context from the prompt
+                context_parts = prompt.split("เนื้อหาอ้างอิง:")
+                if len(context_parts) > 1:
+                    context = context_parts[1].split("กรุณาตอบคำถาม")[0].strip()
+
+                   
+                    
+                    # Generate a basic response based on the context
+                    if context and len(context) > 50:
+                        # Look for relevant information in the context
+                        context_lines = context.split('\n')
+                        relevant_lines = []
+                        for line in context_lines[:5]:  # Check first few lines
+                            if any(keyword in line.lower() for keyword in ['แอลเคน', 'alkane', 'สูตร', 'formula', 'CnH2n']):
+                                relevant_lines.append(line.strip())
+                        
+                        if relevant_lines:
+                            answer = ' '.join(relevant_lines)
+                            return f"ตามข้อมูลในเอกสาร: {answer}\n\n(หมายเหตุ: การตอบนี้อิงจากข้อมูลที่พบในเอกสาร แต่ใช้การประมวลผลแบบพื้นฐาน)"
+                        else:
+                            return f"พบข้อมูลเกี่ยวกับ '{question_line}' ในเอกสาร แต่ไม่สามารถประมวลผลให้คำตอบที่ละเอียดได้ในขณะนี้\n\n(หมายเหตุ: การตอบนี้เป็นการตอบแบบพื้นฐานเนื่องจากไม่สามารถเชื่อมต่อกับ AI service ได้)"
+                    else:
+                        return f"ขออภัย ไม่พบข้อมูลที่เกี่ยวข้องกับคำถาม '{question_line}' ในเอกสารนี้\n\n(หมายเหตุ: การตอบนี้เป็นการตอบแบบพื้นฐานเนื่องจากไม่สามารถเชื่อมต่อกับ AI service ได้)"
+                else:
+                    return f"ขออภัย ไม่พบข้อมูลที่เกี่ยวข้องกับคำถาม '{question_line}' ในเอกสารนี้\n\n(หมายเหตุ: การตอบนี้เป็นการตอบแบบพื้นฐานเนื่องจากไม่สามารถเชื่อมต่อกับ AI service ได้)"
+            else:
+                return "ขออภัย ไม่สามารถประมวลผลคำถามได้\n\n(หมายเหตุ: การตอบนี้เป็นการตอบแบบพื้นฐานเนื่องจากไม่สามารถเชื่อมต่อกับ AI service ได้)"
+        else:
+            # For other types of requests, return a generic mock response
+            return f"การตอบแบบพื้นฐาน: {prompt[:100]}...\n\n(หมายเหตุ: การตอบนี้เป็นการตอบแบบพื้นฐานเนื่องจากไม่สามารถเชื่อมต่อกับ AI service ได้)"
+
     async def generate_response(
         self, 
         prompt: str, 
@@ -143,7 +183,8 @@ class TogetherAIClient:
         """Generate response using Together AI with token management and rate limiting"""
         if not self.client:
             # Return a mock response if Together AI is not available
-            return f"Mock AI response to: {prompt[:100]}..."
+            logger.warning("Together AI client not available, using mock response")
+            return self._generate_mock_response(prompt, system_prompt)
         
         # Ensure we stay within token limits
         max_input_tokens = 6000  # Conservative limit to leave room for response

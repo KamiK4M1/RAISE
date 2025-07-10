@@ -9,6 +9,7 @@ import Link from "next/link"
 import { apiService } from "@/lib/api"
 import { Flashcard, FlashcardSession } from "@/types/api"
 import { useAsyncApi } from "@/hooks/useApi"
+import { AuthWrapper } from "@/components/providers/auth-wrpper"
 
 export default function FlashcardsPage() {
   const [flashcards, setFlashcards] = useState<Flashcard[]>([])
@@ -247,7 +248,8 @@ export default function FlashcardsPage() {
   }
 
   return (
-    <div className="min-h-screen bg-gray-50">
+    <AuthWrapper>
+      <div className="min-h-screen bg-gray-50">
       {/* Navigation */}
       <nav className="bg-white border-b">
         <div className="container mx-auto px-4 py-4 flex items-center justify-between">
@@ -430,6 +432,7 @@ export default function FlashcardsPage() {
           )}
         </div>
       </div>
-    </div>
+      </div>
+    </AuthWrapper>
   )
 }

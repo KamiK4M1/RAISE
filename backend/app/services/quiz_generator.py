@@ -9,8 +9,7 @@ import logging
 import re
 import uuid
 from typing import List, Dict, Any, Optional, Tuple
-import datetime
-from datetime import timezone
+from datetime import datetime, timezone
 from enum import Enum
 
 from app.models.quiz import (
@@ -1079,14 +1078,14 @@ class QuizGeneratorService:
         recommendations = self._generate_recommendations(results)
 
         return QuizResults(
-            attempt_id=attempt.attempt_id,
-            quiz_id=quiz_id,
+            attemptId=attempt.attempt_id,
+            quizId=quiz_id,
             score=results["score"],
             percentage=results["percentage"],
-            total_points=results["total_points"],
-            time_taken=submission.time_taken,
-            bloom_scores=results["bloom_scores"],
-            question_results=results["question_results"],
+            totalPoints=results["total_points"],
+            timeTaken=submission.time_taken,
+            bloomScores=results["bloom_scores"],
+            questionResults=results["question_results"],
             recommendations=recommendations
         )
 
@@ -1120,8 +1119,20 @@ class QuizGeneratorService:
                 question_text = getattr(question, 'question', "")
                 explanation = getattr(question, 'explanation', "")
             
-            is_correct = user_answer.strip().upper() == correct_answer.strip().upper()
+            # Extract just the letter from user answer if it contains full option text
+            user_answer_clean = user_answer.strip()
+            if user_answer_clean and user_answer_clean[0].upper() in ['A', 'B', 'C', 'D']:
+                user_answer_letter = user_answer_clean[0].upper()
+            else:
+                user_answer_letter = user_answer_clean.upper()
+            
+            correct_answer_clean = correct_answer.strip().upper()
+            
+            is_correct = user_answer_letter == correct_answer_clean
             points_earned = points if is_correct else 0
+            
+            # Debug logging
+            logger.debug(f"Question {i+1}: user_answer='{user_answer}' -> '{user_answer_letter}', correct_answer='{correct_answer_clean}', is_correct={is_correct}")
 
             total_points += points
             earned_points += points_earned

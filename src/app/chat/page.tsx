@@ -6,9 +6,10 @@ import { useState, useRef, useEffect } from "react"
 import { Button } from "@/components/ui/button"
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
 import { Input } from "@/components/ui/input"
-import { Brain, ArrowLeft, Send, User, Bot, FileText, Loader2 } from "lucide-react"
+import { Brain, ArrowLeft, Send, User, Bot, FileText, Loader2, ChevronDown } from "lucide-react"
 import Link from "next/link"
 import { apiService } from "@/lib/api"
+import { AuthWrapper } from "@/components/providers/auth-wrpper"
 
 
 interface Message {
@@ -36,6 +37,8 @@ export default function ChatPage() {
   const [inputMessage, setInputMessage] = useState("")
   const [isLoading, setIsLoading] = useState(false)
   const [sessionId, setSessionId] = useState<string | undefined>(undefined)
+  const [selectedDocument, setSelectedDocument] = useState<string | undefined>(undefined)
+  const [documents, setDocuments] = useState<Array<{document_id: string, filename: string}>>([])
   const messagesEndRef = useRef<HTMLDivElement>(null)
   
   
@@ -49,6 +52,21 @@ export default function ChatPage() {
   useEffect(() => {
     scrollToBottom()
   }, [messages])
+
+  useEffect(() => {
+    // Load documents when component mounts
+    const loadDocuments = async () => {
+      try {
+        const response = await apiService.getDocuments()
+        if (response.success && response.data) {
+          setDocuments(response.data)
+        }
+      } catch (error) {
+        console.error('Error loading documents:', error)
+      }
+    }
+    loadDocuments()
+  }, [])
 
   const handleSendMessage = async () => {
     if (!inputMessage.trim() || isLoading) return;
@@ -129,7 +147,8 @@ export default function ChatPage() {
   }
 
   return (
-    <div className="min-h-screen bg-gray-50 flex flex-col">
+    <AuthWrapper>
+      <div className="min-h-screen bg-gray-50 flex flex-col">
       {/* Navigation */}
       <nav className="bg-white border-b">
         <div className="container mx-auto px-4 py-4 flex items-center justify-between">
@@ -155,6 +174,41 @@ export default function ChatPage() {
             <h1 className="text-3xl font-bold text-gray-900 mb-2">ระบบถาม-ตอบ AI</h1>
             <p className="text-gray-600">สอบถามคำถามเกี่ยวกับเนื้อหาในเอกสารของคุณ AI จะตอบโดยอ้างอิงจากเอกสารที่อัปโหลดไว้</p>
           </div>
+
+          {/* Document Info */}
+          <Card className="mb-4 border-0 shadow-sm">
+            <CardContent className="p-4">
+              <div className="flex items-center space-x-3">
+                <FileText className="h-5 w-5 text-blue-500" />
+                <div className="flex-1">
+                  <h3 className="text-sm font-medium text-gray-900">ระบบค้นหาอัตโนมัติ</h3>
+                  <p className="text-sm text-gray-600 mt-1">
+                    AI จะค้นหาข้อมูลจากเอกสารทั้งหมดของคุณ ({documents.length} เอกสาร) เพื่อตอบคำถาม
+                  </p>
+                </div>
+              </div>
+              {documents.length > 0 && (
+                <div className="mt-3 flex flex-wrap gap-2">
+                  {documents.slice(0, 3).map((doc) => (
+                    <span key={doc.document_id} className="px-2 py-1 bg-blue-100 text-blue-800 text-xs rounded-full">
+                      {doc.filename}
+                    </span>
+                  ))}
+                  {documents.length > 3 && (
+                    <span className="px-2 py-1 bg-gray-100 text-gray-600 text-xs rounded-full">
+                      +{documents.length - 3} เอกสารอื่น ๆ
+                    </span>
+                  )}
+                </div>
+              )}
+              {documents.length === 0 && (
+                <div className="mt-2 text-sm text-amber-600 flex items-center space-x-1">
+                  <span>⚠️</span>
+                  <span>ไม่พบเอกสารใด ๆ กรุณาอัปโหลดเอกสารก่อนใช้งาน</span>
+                </div>
+              )}
+            </CardContent>
+          </Card>
 
           {/* Chat Messages */}
           <Card className="flex-1 border-0 shadow-sm mb-4 flex flex-col">
@@ -192,7 +246,11 @@ export default function ChatPage() {
                                 <div key={index} className="text-sm bg-white/20 rounded p-2">
                                   <div className="flex items-center space-x-2 mb-1">
                                     <FileText className="h-3 w-3" />
-                                    <span className="font-medium">ส่วนที่ {index + 1}</span>
+                                    <span className="font-medium">
+                                      {typeof source === 'object' && source.document_title 
+                                        ? source.document_title 
+                                        : `ส่วนที่ ${index + 1}`}
+                                    </span>
                                     {typeof source === 'object' && source.similarity && (
                                       <span className="text-xs opacity-75">
                                         ({Math.round(source.similarity * 100)}% ความเกี่ยวข้อง)
@@ -263,7 +321,15 @@ export default function ChatPage() {
                     {isLoading ? <Loader2 className="h-4 w-4 animate-spin" /> : <Send className="h-4 w-4" />}
                   </Button>
                 </div>
-                <p className="text-xs text-gray-500 mt-2">กด Enter เพื่อส่งข้อความ หรือ Shift + Enter เพื่อขึ้นบรรทัดใหม่</p>
+                <div className="flex items-center justify-between text-xs text-gray-500 mt-2">
+                  <span>กด Enter เพื่อส่งข้อความ หรือ Shift + Enter เพื่อขึ้นบรรทัดใหม่</span>
+                  <div className="flex items-center space-x-1">
+                    <FileText className="h-3 w-3" />
+                    <span className="truncate max-w-32">
+                      ค้นหาจาก {documents.length} เอกสาร
+                    </span>
+                  </div>
+                </div>
               </div>
             </CardContent>
           </Card>
@@ -295,6 +361,7 @@ export default function ChatPage() {
           </Card>
         </div>
       </div>
-    </div>
+      </div>
+    </AuthWrapper>
   )
 }

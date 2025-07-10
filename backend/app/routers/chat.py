@@ -7,11 +7,19 @@ import json
 from datetime import datetime
 
 from app.services.rag_service import MongoDBRAG, get_rag_service
+from app.services.chat_service import ChatService
 from app.core.exceptions import RAGError
+from app.core.dependencies import get_current_user_id
 
 logger = logging.getLogger(__name__)
 
 router = APIRouter()
+
+# Global chat service instance
+chat_service = ChatService()
+
+def get_chat_service() -> ChatService:
+    return chat_service
 
 class ChatRequest(BaseModel):
     question: str
@@ -30,56 +38,66 @@ class ChatResponse(BaseModel):
     message: str
     timestamp: str
 
-async def get_current_user_id() -> str:
-    return "temp_user_123"
-
 @router.post("/ask", response_model=ChatResponse)
 async def ask_question(
     request: ChatRequest,
     user_id: str = Depends(get_current_user_id),
-    rag_service: MongoDBRAG = Depends(get_rag_service)
+    chat_service: ChatService = Depends(get_chat_service)
 ):
-    """Ask a question using RAG across documents"""
+    """Ask a question using RAG with LLM integration across all user documents"""
     try:
-        # Use new MongoDB RAG service
-        results = await rag_service.vector_search(
-            query=request.question,
-            top_k=request.top_k,
-            document_id=request.document_ids[0] if request.document_ids else None
+        # Generate answer using ChatService across all user documents
+        result = await chat_service.answer_question_across_documents(
+            question=request.question,
+            user_id=user_id,
+            document_ids=request.document_ids  # Optional: can limit to specific documents
         )
         
-        # Get context for the question
-        context = await rag_service.retrieve_context(
-            query=request.question,
-            top_k=request.top_k,
-            document_id=request.document_ids[0] if request.document_ids else None
-        )
-        
-        # For now, return the context as the answer since LLM generation is not implemented
-        answer = context if context else "ไม่พบข้อมูลที่เกี่ยวข้องกับคำถามของคุณ"
+        # Extract answer from result
+        answer = result["answer"]
         
         return ChatResponse(
             success=True,
             data={
                 "question": request.question,
                 "answer": answer,
-                "confidence_score": results[0].get('score', 0) if results else 0,
+                "confidence_score": result["confidence"],
                 "response_time": 0.0,
-                "sources": [{"text": r.get('text', ''), "score": r.get('score', 0)} for r in results],
-                "sources_count": len(results),
-                "total_chunks_found": len(results),
-                "avg_similarity": sum(r.get('score', 0) for r in results) / len(results) if results else 0
+                "sources": result["sources"],
+                "sources_count": len(result["sources"]),
+                "total_chunks_found": len(result["sources"]),
+                "avg_similarity": result["confidence"],
+                "documents_searched": result.get("documents_searched", 0),
+                "documents_with_results": result.get("documents_with_results", [])
             },
             message="ตอบคำถามสำเร็จ",
             timestamp=datetime.utcnow().isoformat() + "Z"
         )
         
-    except RAGError as e:
-        logger.error(f"RAG error: {e}")
+    except ValueError as e:
+        logger.error(f"Value error: {e}")
         raise HTTPException(status_code=400, detail=str(e))
     except Exception as e:
         logger.error(f"Error answering question: {e}")
         raise HTTPException(status_code=500, detail="เกิดข้อผิดพลาดในการตอบคำถาม")
+
+@router.post("/process-document/{document_id}")
+async def process_document_for_chat(
+    document_id: str,
+    user_id: str = Depends(get_current_user_id),
+    chat_service: ChatService = Depends(get_chat_service)
+):
+    """Process a document for chat functionality"""
+    try:
+        success = await chat_service.process_document_for_chat(document_id)
+        return {
+            "success": success,
+            "message": "เอกสารถูกประมวลผลสำเร็จ" if success else "เกิดข้อผิดพลาดในการประมวลผลเอกสาร",
+            "document_id": document_id
+        }
+    except Exception as e:
+        logger.error(f"Error processing document {document_id}: {e}")
+        raise HTTPException(status_code=500, detail=f"เกิดข้อผิดพลาดในการประมวลผลเอกสาร: {str(e)}")
 
 @router.post("/search", response_model=ChatResponse)
 async def search_documents(

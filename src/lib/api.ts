@@ -11,6 +11,7 @@ import {
   QuizResults,
   ChatResponse,
   ChatMessage,
+  ChatSession,
   UserAnalytics
 } from '@/types/api';
 
@@ -171,6 +172,10 @@ class ApiService {
     return this.request('/documents/list');
   }
 
+  async getDocuments(): Promise<ApiResponse<Document[]>> {
+    return this.listDocuments();
+  }
+
   async getDocument(docId: string): Promise<ApiResponse<Document>> {
     return this.request(`/documents/${docId}`);
   }
@@ -322,12 +327,14 @@ class ApiService {
   }
 
   // Chat endpoints
-  async askQuestion(question: string, sessionId?: string): Promise<ApiResponse<ChatResponse>> {
+  async askQuestion(question: string, sessionId?: string, documentId?: string): Promise<ApiResponse<ChatResponse>> {
     return this.request('/chat/ask', {
       method: 'POST',
       body: JSON.stringify({
         question,
-        session_id: sessionId,
+        document_ids: documentId ? [documentId] : undefined, // If no documentId, search all documents
+        streaming: false,
+        top_k: 5
       }),
     });
   }
@@ -335,26 +342,55 @@ class ApiService {
   async searchDocuments(query: string, docIds?: string[]): Promise<ApiResponse<any>> {
     return this.request('/chat/search', {
       method: 'POST',
-      body: JSON.stringify({ query, doc_ids: docIds }),
+      body: JSON.stringify({ query, document_ids: docIds }),
     });
   }
 
-  async askQuestionStream(question: string, sessionId?: string): Promise<ApiResponse<any>> {
+  async askQuestionStream(question: string, sessionId?: string, documentId?: string): Promise<ApiResponse<any>> {
     return this.request('/chat/ask-stream', {
       method: 'POST',
-      body: JSON.stringify({ question, session_id: sessionId }),
+      body: JSON.stringify({ 
+        question, 
+        session_id: sessionId,
+        document_id: documentId,
+        use_context: true
+      }),
     });
   }
 
-  async getSimilarQuestions(question: string): Promise<ApiResponse<any>> {
-    return this.request(`/chat/similar-questions?question=${question}`);
+  async getSimilarQuestions(question: string, documentId?: string): Promise<ApiResponse<any>> {
+    const params = new URLSearchParams({ query: question });
+    if (documentId) params.append('document_id', documentId);
+    return this.request(`/chat/similar-questions?${params.toString()}`);
   }
 
-  async getRagStatistics(): Promise<ApiResponse<any>> {
+  async createChatSession(documentId: string): Promise<ApiResponse<any>> {
+    return this.request('/chat/sessions', {
+      method: 'POST',
+      body: JSON.stringify({ document_id: documentId }),
+    });
+  }
+
+  async getChatSessions(): Promise<ApiResponse<any>> {
+    return this.request('/chat/sessions');
+  }
+
+  async getChatHistory(sessionId?: string, documentId?: string, limit?: number): Promise<ApiResponse<any>> {
+    return this.request('/chat/history', {
+      method: 'POST',
+      body: JSON.stringify({ 
+        session_id: sessionId,
+        document_id: documentId,
+        limit: limit || 50
+      }),
+    });
+  }
+
+  async getChatStatistics(): Promise<ApiResponse<any>> {
     return this.request('/chat/stats');
   }
 
-  async healthCheck(): Promise<ApiResponse<any>> {
+  async getChatHealthCheck(): Promise<ApiResponse<any>> {
     return this.request('/chat/health');
   }
 

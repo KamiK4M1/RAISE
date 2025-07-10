@@ -9,6 +9,7 @@ import { Progress } from "@/components/ui/progress"
 import { Brain, Upload, FileText, AlertCircle, ArrowLeft, X } from "lucide-react"
 import Link from "next/link"
 import { apiService } from "@/lib/api"
+import { AuthWrapper } from "@/components/providers/auth-wrpper"
 
 export default function UploadPage() {
   const [file, setFile] = useState<File | null>(null)
@@ -99,7 +100,8 @@ export default function UploadPage() {
   }
 
   return (
-    <div className="min-h-screen bg-gray-50">
+    <AuthWrapper>
+      <div className="min-h-screen bg-gray-50">
       <nav className="bg-white border-b">
         <div className="container mx-auto px-4 py-4 flex items-center justify-between">
           <div className="flex items-center space-x-4">
@@ -202,6 +204,7 @@ export default function UploadPage() {
           </Card>
         </div>
       </div>
-    </div>
+      </div>
+    </AuthWrapper>
   )
 }
