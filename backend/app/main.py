@@ -89,7 +89,10 @@ if settings.is_production:
     # Extract domains from allowed origins
     for origin in settings.allowed_origins:
         if origin.startswith("https://"):
-            domain = origin.replace("https://", "").replace("http://", "")
+            domain = origin.replace("https://", "")
+            trusted_hosts.append(domain)
+        elif origin.startswith("http://"):
+            domain = origin.replace("http://", "")
             trusted_hosts.append(domain)
     
     app.add_middleware(
