@@ -55,7 +55,7 @@ export const authOptions: NextAuthOptions = {
 
         try {
           console.log("Attempting to log in with credentials:", credentials.email);
-          const apiUrl = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:8000';
+          const apiUrl = process.env.NEXT_PUBLIC_API_URL;
           const backendResponse = await fetch(`${apiUrl}/api/auth/login`, {
             method: 'POST',
             headers: {
