@@ -3,13 +3,13 @@
 import type React from "react"
 import { useState } from "react"
 import { motion } from "framer-motion"
-import { signIn } from "next-auth/react"
+// import { signIn } from "next-auth/react"
 import { useRouter } from "next/navigation"
 import { Button } from "@/components/ui/button"
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card"
 import { Input } from "@/components/ui/input"
 import { Label } from "@/components/ui/label"
-import { Brain, Eye, EyeOff, Loader2, Chrome, CheckCircle } from "lucide-react"
+import { Brain, Eye, EyeOff, Loader2, CheckCircle } from "lucide-react"
 import Link from "next/link"
 
 export default function RegisterPage() {
@@ -73,16 +73,7 @@ export default function RegisterPage() {
     }
   }
 
-  const handleGoogleSignIn = async () => {
-    setIsLoading(true)
-    try {
-      await signIn("google", { callbackUrl: "/dashboard" })
-    } catch {
-      setError("เกิดข้อผิดพลาดในการสมัครสมาชิกด้วย Google")
-    } finally {
-      setIsLoading(false)
-    }
-  }
+ 
 
   const containerVariants = {
     hidden: { opacity: 0, y: 20 },
@@ -306,18 +297,7 @@ export default function RegisterPage() {
                 </div>
               </div>
 
-              <motion.div whileHover={{ scale: 1.02 }} whileTap={{ scale: 0.98 }}>
-                <Button
-                  type="button"
-                  variant="outline"
-                  onClick={handleGoogleSignIn}
-                  disabled={isLoading}
-                  className="w-full bg-white hover:bg-gray-50 border-gray-200 py-3"
-                >
-                  <Chrome className="mr-2 h-4 w-4" />
-                  สมัครสมาชิกด้วย Google
-                </Button>
-              </motion.div>
+              
 
               <div className="text-center">
                 <p className="text-sm text-gray-600">
