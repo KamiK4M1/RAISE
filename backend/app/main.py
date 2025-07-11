@@ -1,3 +1,5 @@
+# backend/app/main.py
+
 from fastapi import FastAPI, HTTPException
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.middleware.trustedhost import TrustedHostMiddleware
@@ -17,12 +19,15 @@ from app.routers import documents, flashcards, quiz, chat, analytics, auth
 from app.core.exceptions import setup_exception_handlers
 
 # Configure logging
+# Create logs directory if it doesn't exist
+Path("logs").mkdir(exist_ok=True)
+
 logging.basicConfig(
     level=logging.INFO if not settings.debug else logging.DEBUG,
     format='%(asctime)s - %(name)s - %(levelname)s - %(message)s',
     handlers=[
         logging.StreamHandler(sys.stdout),
-        logging.FileHandler('logs/app.log') if Path('logs').exists() else logging.StreamHandler(sys.stdout)
+        logging.FileHandler('logs/app.log')
     ]
 )
 
@@ -44,7 +49,6 @@ async def lifespan(app: FastAPI):
         logger.info(f"Environment: {settings.environment}")
         logger.info(f"Debug mode: {settings.debug}")
         logger.info(f"Database: {settings.database_name}")
-        logger.info(f"Allowed origins: {settings.allowed_origins}")
         
     except Exception as e:
         logger.error(f"❌ Failed to initialize database: {e}")
@@ -72,41 +76,40 @@ app = FastAPI(
     openapi_url="/openapi.json" if not settings.is_production else None,
 )
 
-# Middleware configuration
+# --- START: Simplified and Corrected Middleware Configuration ---
+
+# 1. Configure Trusted Hosts
+# We derive the list of allowed hostnames from the ALLOWED_ORIGINS setting.
+# TrustedHostMiddleware needs hostnames (e.g., 'example.com', '*.example.com')
+# CORSMiddleware needs full origins (e.g., 'https://example.com')
+allowed_hosts = []
+if settings.allowed_origins:
+    for origin in settings.allowed_origins:
+        if origin == "*":
+            allowed_hosts = ["*"]
+            break
+        # Remove scheme (http/https) and port to get the hostname
+        hostname = origin.replace("https://", "").replace("http://", "").split(":")[0]
+        allowed_hosts.append(hostname)
+
+# Temporarily disable TrustedHostMiddleware for debugging
+# logger.info(f"Initializing TrustedHostMiddleware with allowed_hosts: {allowed_hosts}")
+# app.add_middleware(
+#     TrustedHostMiddleware,
+#     allowed_hosts=allowed_hosts if allowed_hosts else ["*"] # Default to allow all if empty
+# )
+
+# 2. Configure CORS
+logger.info(f"Initializing CORSMiddleware with allow_origins: {settings.allowed_origins}")
 app.add_middleware(
     CORSMiddleware,
     allow_origins=settings.allowed_origins,
     allow_credentials=True,
-    allow_methods=["GET", "POST", "PUT", "DELETE", "PATCH"],
+    allow_methods=["*"],
     allow_headers=["*"],
-    # Additional security headers
-    expose_headers=["X-Total-Count", "X-Page-Count"] if settings.debug else [],
 )
 
-# Trust only specific hosts in production
-if settings.is_production:
-    trusted_hosts = ["*.vercel.app", "*.herokuapp.com", "*.railway.app"]
-    # Extract domains from allowed origins
-    for origin in settings.allowed_origins:
-        if origin.startswith("https://"):
-            domain = origin.replace("https://", "")
-            trusted_hosts.append(domain)
-        elif origin.startswith("http://"):
-            domain = origin.replace("http://", "")
-            trusted_hosts.append(domain)
-    
-    app.add_middleware(
-        TrustedHostMiddleware,
-        allowed_hosts=trusted_hosts
-    )
-    logger.debug(f"Trusted hosts: {trusted_hosts}")
-else:
-    trusted_hosts = ["localhost", "127.0.0.1", "*.localhost", "*.vercel.app"]
-    app.add_middleware(
-        TrustedHostMiddleware,
-        allowed_hosts=trusted_hosts
-    )
-    logger.debug(f"Trusted hosts: {trusted_hosts}")
+# --- END: Simplified and Corrected Middleware Configuration ---
 
 
 # Exception handlers
@@ -130,7 +133,6 @@ async def root():
         "version": settings.version,
         "environment": settings.environment,
         "docs_url": "/docs" if not settings.is_production else "Documentation disabled in production",
-        "timestamp": "2024-01-15T10:30:00Z"
     }
 
 
@@ -146,7 +148,6 @@ async def health_check():
             "database": "connected" if db_healthy else "disconnected",
             "environment": settings.environment,
             "version": settings.version,
-            "timestamp": "2024-01-15T10:30:00Z"
         }
     except Exception as e:
         logger.error(f"Health check failed: {e}")
@@ -155,7 +156,6 @@ async def health_check():
             "status": "unhealthy",
             "database": "error",
             "error": str(e) if settings.debug else "Internal server error",
-            "timestamp": "2024-01-15T10:30:00Z"
         }
 
 
@@ -178,7 +178,6 @@ async def api_info():
             "chat": "/api/chat",
             "analytics": "/api/analytics"
         },
-        "timestamp": "2024-01-15T10:30:00Z"
     }
 
 
@@ -193,10 +192,8 @@ if __name__ == "__main__":
         access_log=settings.debug,
         use_colors=settings.debug,
         log_level="debug" if settings.debug else "info",
-        # Additional production settings
         limit_concurrency=int(os.getenv("LIMIT_CONCURRENCY", 1000)),
         limit_max_requests=int(os.getenv("LIMIT_MAX_REQUESTS", 10000)),
         timeout_keep_alive=int(os.getenv("TIMEOUT_KEEP_ALIVE", 30)),
-        # File upload settings - support large files up to 100MB
-        h11_max_incomplete_event_size=100 * 1024 * 1024,  # 100MB
+        h11_max_incomplete_event_size=100 * 1024 * 1024,  # 100MB for large file uploads
     )
