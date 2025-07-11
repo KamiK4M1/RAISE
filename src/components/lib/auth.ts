@@ -65,13 +65,21 @@ export const authOptions: NextAuthOptions = {
           });
 
           console.log("Backend response status:", backendResponse.status);
+          const responseText = await backendResponse.text();
+          console.log("Raw backend response:", responseText);
+          
           if (!backendResponse.ok) {
-            const errorData = await backendResponse.json().catch(() => ({ message: "Unknown error" }));
+            let errorData;
+            try {
+              errorData = JSON.parse(responseText);
+            } catch {
+              errorData = { message: responseText || "Unknown error" };
+            }
             console.error("Backend login failed:", backendResponse.status, errorData);
             return null;
           }
 
-          const data = await backendResponse.json();
+          const data = JSON.parse(responseText);
           console.log("Backend login successful, received data:", data);
           
           if (data.access_token && data.user) {
