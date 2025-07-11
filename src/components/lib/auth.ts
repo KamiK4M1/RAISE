@@ -60,6 +60,7 @@ export const authOptions: NextAuthOptions = {
             method: 'POST',
             headers: {
               'Content-Type': 'application/json',
+              'Host': new URL(apiUrl).host,
             },
             body: JSON.stringify({ email: credentials.email, password: credentials.password }),
           });
