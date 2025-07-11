@@ -104,7 +104,7 @@ export default function GenerateFlashcardsPage() {
       }
 
       if (response.success && response.data) {
-        setGeneratedFlashcards(response.data as Record<string, unknown>)
+        setGeneratedFlashcards(response.data as unknown as Record<string, unknown>)
         setShowSuccessDialog(true)
       } else {
         throw new Error(response.message || "ไม่สามารถสร้างแฟลชการ์ดได้")
@@ -124,9 +124,9 @@ export default function GenerateFlashcardsPage() {
       // For topic-based flashcards, use the document_id from the API response
       if (generatedFlashcards && generatedFlashcards.document_id) {
         router.push(`/flashcards/${generatedFlashcards.document_id}`)
-      } else if (generatedFlashcards && generatedFlashcards.flashcards && generatedFlashcards.flashcards.length > 0) {
+      } else if (generatedFlashcards && Array.isArray((generatedFlashcards as Record<string, unknown>).flashcards) && ((generatedFlashcards as Record<string, unknown>).flashcards as unknown[]).length > 0) {
         // Fallback to document_id from individual flashcard
-        const documentId = generatedFlashcards.flashcards[0]?.document_id
+        const documentId = ((generatedFlashcards as Record<string, unknown>).flashcards as Array<{ document_id?: string }>)[0]?.document_id
         if (documentId) {
           router.push(`/flashcards/${documentId}`)
         } else {
@@ -821,7 +821,13 @@ export default function GenerateFlashcardsPage() {
                 <DialogDescription className="text-base text-gray-600">
                   สร้างแฟลชการ์ดจำนวน{" "}
                   <span className="font-semibold text-purple-600">
-                    {generatedFlashcards?.flashcards?.length || generatedFlashcards?.flashcards_generated || 0} ใบ
+                    {(() => {
+                      const flashcards = generatedFlashcards as Record<string, unknown> | null;
+                      if (Array.isArray(flashcards?.flashcards)) {
+                        return (flashcards.flashcards as unknown[]).length;
+                      }
+                      return (flashcards?.flashcards_generated as number) || 0;
+                    })()} ใบ
                   </span>{" "}
                   เรียบร้อยแล้ว พร้อมเริ่มทบทวนได้เลย
                 </DialogDescription>

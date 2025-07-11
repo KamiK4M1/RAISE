@@ -66,125 +66,6 @@ export default function FlashcardLibraryPage() {
     loadFlashcardSets()
   }, [])
 
-  useEffect(() => {
-    filterSets()
-  }, [flashcardSets, searchQuery, selectedFilter, filterSets])
-
-  const loadFlashcardSets = async () => {
-    try {
-      setLoading(true)
-      setError(null)
-
-      // Get all flashcard topics and documents
-      const [topicsResponse, documentsResponse] = await Promise.all([
-        apiService.getFlashcardTopics(),
-        apiService.listDocuments(),
-      ])
-
-      console.log('Topics response:', topicsResponse)
-      console.log('Documents response:', documentsResponse)
-
-      const sets: FlashcardSet[] = []
-      let totalCards = 0
-      let totalDue = 0
-      let totalMastered = 0
-
-      // Process topics
-      if (topicsResponse.success && topicsResponse.data?.topics) {
-        for (const topic of topicsResponse.data.topics) {
-          const topicName = topic.topic_name || topic.name || 'untitled'
-          const flashcardsResponse = await apiService.getFlashcardsByDocument(
-            `topic_${topicName.replace(/\s+/g, '_')}`,
-            0,
-            1000
-          )
-          
-          if (flashcardsResponse.success && flashcardsResponse.data?.flashcards) {
-            const cards = flashcardsResponse.data.flashcards
-            
-            // Only include topics that have flashcards
-            if (cards.length > 0) {
-              const dueCount = cards.filter((card: { is_due: boolean }) => card.is_due).length
-              const masteredCount = cards.filter((card: { review_count: number }) => card.review_count >= 5).length
-              
-              sets.push({
-                document_id: `topic_${topicName.replace(/\s+/g, '_')}`,
-                source_name: topicName,
-                filename: `${topicName}.topic`,
-                total_cards: cards.length,
-                due_count: dueCount,
-                mastered_count: masteredCount,
-                created_at: topic.created_at || new Date().toISOString(),
-                last_reviewed: topic.last_reviewed || new Date().toISOString(),
-                average_difficulty: topic.average_difficulty || 'medium',
-                completion_rate: (masteredCount / cards.length) * 100,
-                is_topic_based: true,
-              })
-              
-              totalCards += cards.length
-              totalDue += dueCount
-              totalMastered += masteredCount
-            }
-          }
-        }
-      }
-
-      // Process documents
-      if (documentsResponse.success && documentsResponse.data) {
-        for (const document of documentsResponse.data) {
-          if (!document?.document_id) continue
-          
-          const flashcardsResponse = await apiService.getFlashcardsByDocument(
-            document.document_id,
-            0,
-            1000
-          )
-          
-          if (flashcardsResponse.success && flashcardsResponse.data?.flashcards) {
-            const cards = flashcardsResponse.data.flashcards
-            
-            // Only include documents that have flashcards
-            if (cards.length > 0) {
-              const dueCount = cards.filter((card: { is_due: boolean }) => card.is_due).length
-              const masteredCount = cards.filter((card: { review_count: number }) => card.review_count >= 5).length
-              
-              sets.push({
-                document_id: document.document_id,
-                source_name: document.filename || 'Untitled Document',
-                filename: document.filename || 'Untitled Document',
-                total_cards: cards.length,
-                due_count: dueCount,
-                mastered_count: masteredCount,
-                created_at: document.created_at || new Date().toISOString(),
-                last_reviewed: cards[0].created_at || document.created_at || new Date().toISOString(),
-                average_difficulty: 'medium',
-                completion_rate: (masteredCount / cards.length) * 100,
-                is_topic_based: false,
-              })
-              
-              totalCards += cards.length
-              totalDue += dueCount
-              totalMastered += masteredCount
-            }
-          }
-        }
-      }
-
-      setFlashcardSets(sets)
-      setStats({
-        totalSets: sets.length,
-        totalCards,
-        dueCards: totalDue,
-        masteredCards: totalMastered,
-      })
-    } catch (err: unknown) {
-      console.error('Error loading flashcard sets:', err)
-      setError(err instanceof Error ? err.message : 'ไม่สามารถโหลดข้อมูลแฟลชการ์ดได้')
-    } finally {
-      setLoading(false)
-    }
-  }
-
   const filterSets = useCallback(() => {
     let filtered = flashcardSets
 
@@ -216,6 +97,127 @@ export default function FlashcardLibraryPage() {
 
     setFilteredSets(filtered)
   }, [flashcardSets, searchQuery, selectedFilter])
+
+  useEffect(() => {
+    filterSets()
+  }, [flashcardSets, searchQuery, selectedFilter, filterSets])
+
+  const loadFlashcardSets = async () => {
+    try {
+      setLoading(true)
+      setError(null)
+
+      // Get all flashcard topics and documents
+      const [topicsResponse, documentsResponse] = await Promise.all([
+        apiService.getFlashcardTopics(),
+        apiService.listDocuments(),
+      ])
+
+      console.log('Topics response:', topicsResponse)
+      console.log('Documents response:', documentsResponse)
+
+      const sets: FlashcardSet[] = []
+      let totalCards = 0
+      let totalDue = 0
+      let totalMastered = 0
+
+      // Process topics
+      if (topicsResponse.success && topicsResponse.data && Array.isArray((topicsResponse.data as unknown as Record<string, unknown>).topics)) {
+        const topics = (topicsResponse.data as unknown as Record<string, unknown>).topics as unknown as Array<Record<string, unknown>>
+        for (const topic of topics) {
+          const topicName = String(topic.topic_name || topic.name) || 'untitled'
+          const flashcardsResponse = await apiService.getFlashcardsByDocument(
+            `topic_${topicName.replace(/\s+/g, '_')}`,
+            0,
+            1000
+          )
+          
+          if (flashcardsResponse.success && flashcardsResponse.data && Array.isArray((flashcardsResponse.data as unknown as Record<string, unknown>).flashcards)) {
+            const cards = (flashcardsResponse.data as unknown as Record<string, unknown>).flashcards as unknown as Array<Record<string, unknown>>
+            
+            // Only include topics that have flashcards
+            if (cards.length > 0) {
+              const dueCount = cards.filter((card) => Boolean(card.is_due)).length
+              const masteredCount = cards.filter((card) => typeof card.review_count === 'number' && card.review_count >= 5).length
+              
+              sets.push({
+                document_id: `topic_${topicName.replace(/\s+/g, '_')}`,
+                source_name: topicName,
+                filename: `${topicName}.topic`,
+                total_cards: cards.length,
+                due_count: dueCount,
+                mastered_count: masteredCount,
+                created_at: String(topic.created_at) || new Date().toISOString(),
+                last_reviewed: String(topic.last_reviewed) || new Date().toISOString(),
+                average_difficulty: String(topic.average_difficulty) || 'medium',
+                completion_rate: (masteredCount / cards.length) * 100,
+                is_topic_based: true,
+              })
+              
+              totalCards += cards.length
+              totalDue += dueCount
+              totalMastered += masteredCount
+            }
+          }
+        }
+      }
+
+      // Process documents
+      if (documentsResponse.success && documentsResponse.data && Array.isArray(documentsResponse.data)) {
+        const documents = documentsResponse.data as unknown as Array<Record<string, unknown>>
+        for (const document of documents) {
+          if (!document?.document_id) continue
+          
+          const flashcardsResponse = await apiService.getFlashcardsByDocument(
+            String(document.document_id),
+            0,
+            1000
+          )
+          
+          if (flashcardsResponse.success && flashcardsResponse.data && Array.isArray((flashcardsResponse.data as unknown as Record<string, unknown>).flashcards)) {
+            const cards = (flashcardsResponse.data as unknown as Record<string, unknown>).flashcards as unknown as Array<Record<string, unknown>>
+            
+            // Only include documents that have flashcards
+            if (cards.length > 0) {
+              const dueCount = cards.filter((card) => Boolean(card.is_due)).length
+              const masteredCount = cards.filter((card) => typeof card.review_count === 'number' && card.review_count >= 5).length
+              
+              sets.push({
+                document_id: String(document.document_id),
+                source_name: String(document.filename) || 'Untitled Document',
+                filename: String(document.filename) || 'Untitled Document',
+                total_cards: cards.length,
+                due_count: dueCount,
+                mastered_count: masteredCount,
+                created_at: String(document.created_at) || new Date().toISOString(),
+                last_reviewed: String(cards[0]?.created_at) || String(document.created_at) || new Date().toISOString(),
+                average_difficulty: 'medium',
+                completion_rate: (masteredCount / cards.length) * 100,
+                is_topic_based: false,
+              })
+              
+              totalCards += cards.length
+              totalDue += dueCount
+              totalMastered += masteredCount
+            }
+          }
+        }
+      }
+
+      setFlashcardSets(sets)
+      setStats({
+        totalSets: sets.length,
+        totalCards,
+        dueCards: totalDue,
+        masteredCards: totalMastered,
+      })
+    } catch (err: unknown) {
+      console.error('Error loading flashcard sets:', err)
+      setError(err instanceof Error ? err.message : 'ไม่สามารถโหลดข้อมูลแฟลชการ์ดได้')
+    } finally {
+      setLoading(false)
+    }
+  }
 
   const handleDeleteSet = (set: FlashcardSet) => {
     setSelectedSet(set)
