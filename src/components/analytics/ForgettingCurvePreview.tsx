@@ -15,6 +15,10 @@ interface ForgettingCurvePoint {
   confidence_interval: [number, number]
 }
 
+interface ForgettingCurveData {
+  forgetting_curve: ForgettingCurvePoint[]
+}
+
 export function ForgettingCurvePreview() {
   const [curveData, setCurveData] = useState<ForgettingCurvePoint[]>([])
   const [loading, setLoading] = useState(true)
@@ -27,9 +31,20 @@ export function ForgettingCurvePreview() {
     try {
       const response = await apiService.getForgettingCurve(90)
       
-      if (response.success && response.data?.forgetting_curve) {
-        // Take only first 4 points for preview
-        setCurveData(response.data.forgetting_curve.slice(0, 4))
+      if (response.success && response.data) {
+        const data = response.data as unknown as ForgettingCurveData
+        if (data.forgetting_curve && Array.isArray(data.forgetting_curve)) {
+          // Take only first 4 points for preview
+          setCurveData(data.forgetting_curve.slice(0, 4))
+        } else {
+          // Use fallback data
+          setCurveData([
+            { interval_days: 1, retention_rate: 0.92, review_count: 45, average_quality: 4.2, confidence_interval: [0.88, 0.96] },
+            { interval_days: 3, retention_rate: 0.85, review_count: 38, average_quality: 3.8, confidence_interval: [0.80, 0.90] },
+            { interval_days: 7, retention_rate: 0.78, review_count: 32, average_quality: 3.5, confidence_interval: [0.72, 0.84] },
+            { interval_days: 14, retention_rate: 0.72, review_count: 28, average_quality: 3.2, confidence_interval: [0.65, 0.79] }
+          ])
+        }
       } else {
         // Fallback data
         setCurveData([
