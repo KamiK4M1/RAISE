@@ -104,6 +104,8 @@ else:
         TrustedHostMiddleware,
         allowed_hosts=["localhost", "127.0.0.1", "*.localhost", "*.vercel.app"]
     )
+logger.debug(f"Trusted hosts: {trusted_hosts}")
+
 
 # Exception handlers
 setup_exception_handlers(app)
