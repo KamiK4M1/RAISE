@@ -99,12 +99,14 @@ if settings.is_production:
         TrustedHostMiddleware,
         allowed_hosts=trusted_hosts
     )
+    logger.debug(f"Trusted hosts: {trusted_hosts}")
 else:
+    trusted_hosts = ["localhost", "127.0.0.1", "*.localhost", "*.vercel.app"]
     app.add_middleware(
         TrustedHostMiddleware,
-        allowed_hosts=["localhost", "127.0.0.1", "*.localhost", "*.vercel.app"]
+        allowed_hosts=trusted_hosts
     )
-logger.debug(f"Trusted hosts: {trusted_hosts}")
+    logger.debug(f"Trusted hosts: {trusted_hosts}")
 
 
 # Exception handlers
