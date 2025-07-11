@@ -31,10 +31,12 @@ import Link from "next/link"
 import { apiService } from "@/lib/api"
 import { Document } from "@/types/api"
 import { AuthWrapper } from "@/components/providers/auth-wrpper"
-import { signOut } from "next-auth/react"
+import { ForgettingCurvePreview } from "@/components/analytics/ForgettingCurvePreview"
+import { signOut, useSession } from "next-auth/react"
 
 
 export default function DashboardPage() {
+  const { data: session, status } = useSession()
   const [stats, setStats] = useState({
     documentsUploaded: 0,
     flashcardsStudied: 0,
@@ -83,8 +85,13 @@ export default function DashboardPage() {
   const handleLogoutCancel = () => {
     setShowLogoutDialog(false)
   }
-  
+
   useEffect(() => {
+    // Don't load data until session is ready and authenticated
+    if (status === "loading" || !session?.accessToken) {
+      return
+    }
+    
     const loadDashboardData = async () => {
       try {
         // Load current user
@@ -112,7 +119,7 @@ export default function DashboardPage() {
             const data = analyticsResponse.data
             setStats({
               documentsUploaded: documentCount, // Use actual document count
-              flashcardsStudied: data.flashcard_stats?.total_reviews || 0,
+              flashcardsStudied: data.flashcard_stats?.total_cards || 0, // Changed to total_cards
               quizzesTaken: data.quiz_stats?.total_attempts || 0,
               questionsAsked: data.chat_stats?.total_questions || 0,
               studyStreak: data.flashcard_stats?.streak_days || 0,
@@ -164,7 +171,7 @@ export default function DashboardPage() {
     }
 
     loadDashboardData()
-  }, [])
+  }, [session, status])
 
   const handleDeleteDocument = async (documentId: string) => {
     if (!confirm('คุณแน่ใจหรือไม่ว่าต้องการลบเอกสารนี้? การกระทำนี้ไม่สามารถยกเลิกได้')) {
@@ -204,10 +211,15 @@ export default function DashboardPage() {
       {/* Navigation */}
       <nav className="bg-white border-b sticky top-0 z-50">
         <div className="container mx-auto px-4 py-4 flex items-center justify-between">
-          <div className="flex items-center space-x-2">
-            <Brain className="h-6 w-6 sm:h-8 sm:w-8 text-blue-600" />
-            <span className="text-xl sm:text-2xl font-bold text-gray-900">RAISE</span>
-          </div>
+          <div className="flex items-center space-x-3">
+                          <div className="relative">
+                            <div className="absolute inset-0 bg-gradient-to-r from-blue-600 to-purple-600 rounded-xl blur opacity-75"></div>
+                            <Brain className="relative h-8 w-8 text-white bg-gradient-to-r from-blue-600 to-purple-600 p-1.5 rounded-xl" />
+                          </div>
+                          <span className="text-2xl font-bold bg-gradient-to-r from-blue-600 to-purple-600 bg-clip-text text-transparent">
+                            RAISE
+                          </span>
+                        </div>
           <div className="flex items-center space-x-2 sm:space-x-4">
             <span className="hidden sm:inline text-gray-600">สวัสดี, {user?.name || 'นักเรียน'}</span>
             <span className="sm:hidden text-gray-600 text-sm">{user?.name || 'นักเรียน'}</span>
@@ -316,7 +328,7 @@ export default function DashboardPage() {
                         </div>
                         <div className="text-right">
                           <p className="text-2xl font-bold text-purple-600">{stats.flashcardsStudied}</p>
-                          <p className="text-xs text-gray-500">ทบทวนแล้ว</p>
+                          <p className="text-xs text-gray-500">บัตรทั้งหมด</p>
                         </div>
                       </div>
                       <div className="grid grid-cols-2 gap-3">
@@ -461,6 +473,9 @@ export default function DashboardPage() {
 
           {/* Sidebar */}
           <div className="space-y-4 sm:space-y-6">
+            {/* Forgetting Curve Preview */}
+            <ForgettingCurvePreview />
+            
             {/* Study Streak */}
             <Card className="border-0 shadow-sm">
               <CardHeader className="pb-3 sm:pb-6">
@@ -517,33 +532,7 @@ export default function DashboardPage() {
             </Card>
 
             {/* Quick Access */}
-            <Card className="border-0 shadow-sm">
-              <CardHeader className="pb-3 sm:pb-6">
-                <CardTitle className="text-base sm:text-lg">เข้าถึงด่วน</CardTitle>
-              </CardHeader>
-              <CardContent className="pt-0">
-                <div className="space-y-2">
-                  <Link href="/reports">
-                    <Button
-                      variant="outline"
-                      className="w-full justify-start bg-white text-gray-700 border-gray-300 hover:bg-gray-50 text-sm sm:text-base h-auto py-2 sm:py-3"
-                    >
-                      <BarChart3 className="h-3 w-3 sm:h-4 sm:w-4 mr-2" />
-                      รายงานความก้าวหน้า
-                    </Button>
-                  </Link>
-                  <Link href="/settings">
-                    <Button
-                      variant="outline"
-                      className="w-full justify-start bg-white text-gray-700 border-gray-300 hover:bg-gray-50 text-sm sm:text-base h-auto py-2 sm:py-3"
-                    >
-                      <Target className="h-3 w-3 sm:h-4 sm:w-4 mr-2" />
-                      ตั้งค่าการเรียนรู้
-                    </Button>
-                  </Link>
-                </div>
-              </CardContent>
-            </Card>
+            
           </div>
         </div>
       </div>

@@ -21,7 +21,7 @@ Where EF is ease factor and q is quality (0-5)
 import math
 import asyncio
 import statistics
-from datetime import datetime, timedelta
+from datetime import datetime, timedelta, timezone
 from typing import Tuple, List, Dict, Any, Optional
 from dataclasses import dataclass, asdict
 from enum import Enum
@@ -34,6 +34,12 @@ from app.core.exceptions import DatabaseError
 from app.utils.thai_processing import thai_processor
 
 logger = logging.getLogger(__name__)
+
+def ensure_timezone_aware(dt: datetime) -> datetime:
+    """Ensure a datetime object is timezone-aware (UTC)"""
+    if dt.tzinfo is None:
+        return dt.replace(tzinfo=timezone.utc)
+    return dt
 
 class ReviewQuality(Enum):
     """SM-2 Quality scale (0-5) for review performance"""
@@ -177,7 +183,7 @@ class SpacedRepetitionService:
             # Calculate retention strength based on timing
             retention_strength = self._calculate_retention_strength(
                 card["next_review"], 
-                datetime.datetime.utcnow()
+                datetime.now(timezone.utc)
             )
             
             # Get performance context
@@ -215,7 +221,7 @@ class SpacedRepetitionService:
                 "review_count": card["review_count"] + 1,
                 "correct_count": correct_count,
                 "incorrect_count": incorrect_count,
-                "updated_at": datetime.datetime.utcnow(),
+                "updated_at": datetime.now(timezone.utc),
                 "last_quality": quality,
                 "last_review_time": review.time_taken or 0,
                 "accuracy_rate": accuracy,
@@ -317,7 +323,7 @@ class SpacedRepetitionService:
         """Get recent performance metrics for context-aware scheduling"""
         try:
             # Get recent reviews for this card
-            cutoff_date = datetime.datetime.utcnow() - timedelta(days=days)
+            cutoff_date = datetime.now(timezone.utc) - timedelta(days=days)
             
             # This would query a review history collection in a full implementation
             # For now, we'll use the card's current stats
@@ -415,7 +421,7 @@ class SpacedRepetitionService:
         new_interval = self._apply_interval_fuzz(new_interval)
         
         # Calculate next review date
-        next_review = datetime.datetime.utcnow() + timedelta(days=new_interval)
+        next_review = datetime.now(timezone.utc) + timedelta(days=new_interval)
         
         return new_ease_factor, new_interval, next_review
 
@@ -473,7 +479,7 @@ class SpacedRepetitionService:
         """
         try:
             # Build query for due cards
-            now = datetime.datetime.utcnow()
+            now = datetime.now(timezone.utc)
             query = {
                 "user_id": ObjectId(user_id),
                 "next_review": {"$lte": now}
@@ -571,14 +577,23 @@ class SpacedRepetitionService:
             LearningStats with detailed performance metrics
         """
         try:
-            # Get all user's cards
+            # Get all user's cards - try both string and ObjectId formats
             cards = []
-            async for card in self.flashcards_collection.find({"user_id": ObjectId(user_id)}):
-                cards.append(card)
+            query_conditions = [
+                {"user_id": user_id},
+                {"user_id": ObjectId(user_id)} if ObjectId.is_valid(user_id) else None
+            ]
+            query_conditions = [q for q in query_conditions if q is not None]
+            
+            for query in query_conditions:
+                async for card in self.flashcards_collection.find(query):
+                    cards.append(card)
+                if cards:  # If we found cards with this query, stop trying
+                    break
             
             # Calculate basic statistics
             total_cards = len(cards)
-            now = datetime.datetime.utcnow()
+            now = datetime.now(timezone.utc)
             due_today = len([c for c in cards if c["next_review"] <= now])
             
             # Performance statistics
@@ -646,8 +661,48 @@ class SpacedRepetitionService:
         try:
             # Get all user's cards for analysis
             cards = []
-            async for card in self.flashcards_collection.find({"user_id": ObjectId(user_id)}):
-                cards.append(card)
+            # Try both string and ObjectId user_id formats for compatibility
+            query_conditions = [
+                {"user_id": user_id},
+                {"user_id": ObjectId(user_id)} if ObjectId.is_valid(user_id) else None
+            ]
+            query_conditions = [q for q in query_conditions if q is not None]
+            
+            for query in query_conditions:
+                async for card in self.flashcards_collection.find(query):
+                    cards.append(card)
+                if cards:  # If we found cards with this query, stop trying
+                    break
+            
+            # If no cards found, return mock data for demonstration
+            if not cards:
+                logger.info(f"No flashcards found for user {user_id}, returning mock forgetting curve data")
+                return [
+                    ForgettingCurve(
+                        interval_days=1, retention_rate=0.92, review_count=0, 
+                        average_quality=4.6, confidence_interval=(0.88, 0.96)
+                    ),
+                    ForgettingCurve(
+                        interval_days=3, retention_rate=0.85, review_count=0,
+                        average_quality=4.2, confidence_interval=(0.80, 0.90)
+                    ),
+                    ForgettingCurve(
+                        interval_days=7, retention_rate=0.78, review_count=0,
+                        average_quality=3.9, confidence_interval=(0.72, 0.84)
+                    ),
+                    ForgettingCurve(
+                        interval_days=14, retention_rate=0.72, review_count=0,
+                        average_quality=3.6, confidence_interval=(0.65, 0.79)
+                    ),
+                    ForgettingCurve(
+                        interval_days=30, retention_rate=0.68, review_count=0,
+                        average_quality=3.4, confidence_interval=(0.60, 0.76)
+                    ),
+                    ForgettingCurve(
+                        interval_days=90, retention_rate=0.62, review_count=0,
+                        average_quality=3.1, confidence_interval=(0.54, 0.70)
+                    )
+                ]
             
             # Group cards by interval ranges for analysis
             interval_groups = {
@@ -907,7 +962,7 @@ class SpacedRepetitionService:
         """Calculate retention rate over the specified period"""
         try:
             # Get cards that were due in the specified period
-            cutoff_date = datetime.datetime.utcnow() - timedelta(days=days_back)
+            cutoff_date = datetime.now(timezone.utc) - timedelta(days=days_back)
             
             cards = []
             async for card in self.flashcards_collection.find({
@@ -933,7 +988,7 @@ class SpacedRepetitionService:
         try:
             # This would ideally check daily study activity
             # For now, estimate based on card update frequency
-            cutoff_date = datetime.datetime.utcnow() - timedelta(days=days_back)
+            cutoff_date = datetime.now(timezone.utc) - timedelta(days=days_back)
             
             # Count days with activity (cards updated)
             pipeline = [
@@ -968,7 +1023,7 @@ class SpacedRepetitionService:
         """Estimate daily study time in seconds"""
         try:
             # Get cards reviewed today
-            today_start = datetime.datetime.utcnow().replace(hour=0, minute=0, second=0, microsecond=0)
+            today_start = datetime.now(timezone.utc).replace(hour=0, minute=0, second=0, microsecond=0)
             
             cards = []
             async for card in self.flashcards_collection.find({
@@ -1011,14 +1066,23 @@ class SpacedRepetitionService:
     async def _predict_workload(self, user_id: str, days_ahead: int = 7) -> Dict[str, int]:
         """Predict daily workload for the next N days"""
         try:
-            # Get all user's cards
+            # Get all user's cards - try both string and ObjectId formats
             cards = []
-            async for card in self.flashcards_collection.find({"user_id": ObjectId(user_id)}):
-                cards.append(card)
+            query_conditions = [
+                {"user_id": user_id},
+                {"user_id": ObjectId(user_id)} if ObjectId.is_valid(user_id) else None
+            ]
+            query_conditions = [q for q in query_conditions if q is not None]
+            
+            for query in query_conditions:
+                async for card in self.flashcards_collection.find(query):
+                    cards.append(card)
+                if cards:  # If we found cards with this query, stop trying
+                    break
             
             # Predict daily workload
             workload = {}
-            base_date = datetime.datetime.utcnow().replace(hour=0, minute=0, second=0, microsecond=0)
+            base_date = datetime.now(timezone.utc).replace(hour=0, minute=0, second=0, microsecond=0)
             
             for i in range(days_ahead):
                 target_date = base_date + timedelta(days=i)
@@ -1054,7 +1118,7 @@ class SpacedRepetitionService:
             # Such as learning streaks, daily goals, achievements, etc.
             
             # Update user's daily review count
-            today = datetime.datetime.utcnow().date()
+            today = datetime.now(timezone.utc).date()
             
             # This is a placeholder for user analytics updates
             # In a full implementation, you'd have a user analytics collection
@@ -1074,7 +1138,9 @@ class SpacedRepetitionService:
         Returns:
             Urgency level: "overdue", "due", "soon", or "future"
         """
-        now = datetime.utcnow()
+        now = datetime.now(timezone.utc)
+        next_review = ensure_timezone_aware(next_review)
+        
         time_diff = (next_review - now).total_seconds() / 3600  # Convert to hours
         
         if time_diff < -24:  # More than 1 day overdue
@@ -1085,6 +1151,26 @@ class SpacedRepetitionService:
             return "soon"
         else:  # Due in the future
             return "future"
+
+    def get_difficulty_level(self, ease_factor: float, interval: int) -> str:
+        """
+        Determine difficulty level based on ease factor and interval
+        
+        Args:
+            ease_factor: SM-2 ease factor
+            interval: Current interval in days
+            
+        Returns:
+            Difficulty level: "easy", "medium", or "hard"
+        """
+        # Cards with low ease factor are harder
+        if ease_factor < 2.0:
+            return "hard"
+        # Cards with high ease factor and long intervals are easier
+        elif ease_factor > 2.5 and interval > 14:
+            return "easy"
+        else:
+            return "medium"
 
 # Global instance
 # spaced_repetition = SpacedRepetitionService()

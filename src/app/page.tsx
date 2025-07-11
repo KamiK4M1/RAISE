@@ -1,5 +1,5 @@
 "use client"
-import { motion } from "framer-motion"
+import { motion, easeInOut } from "framer-motion"
 import { Button } from "@/components/ui/button"
 import { Card, CardDescription, CardHeader, CardTitle } from "@/components/ui/card"
 import { Upload, Brain, MessageSquare, BarChart3, BookOpen, Zap, Target, Sparkles } from "lucide-react"
@@ -27,14 +27,12 @@ export default function HomePage() {
     },
   }
 
-  const floatingVariants = {
-    animate: {
-      y: [-10, 10, -10],
-      transition: {
-        duration: 3,
-        repeat: Number.POSITIVE_INFINITY,
-        ease: [0.42, 0, 0.58, 1], // cubic-bezier for easeInOut
-      },
+  const floatingAnimation = {
+    y: [-10, 10, -10],
+    transition: {
+      duration: 3,
+      repeat: Infinity,
+      ease: easeInOut,
     },
   }
 
@@ -80,20 +78,21 @@ export default function HomePage() {
         {/* Floating Elements */}
         <motion.div
           className="absolute top-20 left-10 w-20 h-20 bg-blue-200 rounded-full opacity-20"
-          variants={floatingVariants}
-          animate="animate"
+          animate={floatingAnimation}
         />
         <motion.div
           className="absolute top-40 right-20 w-16 h-16 bg-purple-200 rounded-full opacity-20"
-          variants={floatingVariants}
-          animate="animate"
-          transition={{ delay: 1 }}
+          animate={{
+            ...floatingAnimation,
+            transition: { ...floatingAnimation.transition, delay: 1 }
+          }}
         />
         <motion.div
           className="absolute bottom-20 left-1/4 w-12 h-12 bg-green-200 rounded-full opacity-20"
-          variants={floatingVariants}
-          animate="animate"
-          transition={{ delay: 2 }}
+          animate={{
+            ...floatingAnimation,
+            transition: { ...floatingAnimation.transition, delay: 2 }
+          }}
         />
 
         <motion.div className="max-w-5xl mx-auto" initial="hidden" animate="visible" variants={containerVariants}>
@@ -136,17 +135,7 @@ export default function HomePage() {
                 </Button>
               </motion.div>
             </Link>
-            <Link href="/demo">
-              <motion.div whileHover={{ scale: 1.05 }} whileTap={{ scale: 0.95 }}>
-                <Button
-                  size="lg"
-                  variant="outline"
-                  className="bg-white/80 backdrop-blur-sm text-gray-700 border-gray-300 hover:bg-white px-8 py-4 text-lg"
-                >
-                  ดูตัวอย่างการใช้งาน
-                </Button>
-              </motion.div>
-            </Link>
+            
           </motion.div>
         </motion.div>
       </section>

@@ -426,6 +426,34 @@ class ApiService {
     const params = limit ? `?limit=${limit}` : '';
     return this.request(`/analytics/recent-activity${params}`);
   }
+
+  async getForgettingCurve(daysBack?: number): Promise<ApiResponse<any>> {
+    const params = daysBack ? `?days_back=${daysBack}` : '';
+    return this.request(`/analytics/forgetting-curve${params}`);
+  }
+
+  async getLearningRecommendations(): Promise<ApiResponse<any>> {
+    return this.request('/analytics/learning-recommendations');
+  }
+
+  async getLearningStatistics(daysBack?: number): Promise<ApiResponse<any>> {
+    const params = daysBack ? `?days_back=${daysBack}` : '';
+    return this.request(`/analytics/learning-statistics${params}`);
+  }
+
+  async getOptimizedStudySchedule(
+    targetDailyReviews?: number,
+    maxNewCards?: number,
+    availableTimeMinutes?: number
+  ): Promise<ApiResponse<any>> {
+    const params = new URLSearchParams();
+    if (targetDailyReviews) params.append('target_daily_reviews', targetDailyReviews.toString());
+    if (maxNewCards) params.append('max_new_cards', maxNewCards.toString());
+    if (availableTimeMinutes) params.append('available_time_minutes', availableTimeMinutes.toString());
+    
+    const queryString = params.toString() ? `?${params.toString()}` : '';
+    return this.request(`/analytics/study-schedule${queryString}`);
+  }
   // Default endpoints
   async getRoot(): Promise<ApiResponse<any>> {
     return this.request('/');

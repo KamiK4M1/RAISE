@@ -172,6 +172,10 @@ class MongoDBManager:
     def get_chat_messages_collection(self) -> AsyncIOMotorCollection:
         """Get chat messages collection"""
         return get_collection(Collections.CHAT_MESSAGES)
+    
+    def get_collection(self, collection_name: str) -> AsyncIOMotorCollection:
+        """Get any collection by name"""
+        return get_collection(collection_name)
 
 # Document schemas for validation
 def create_user_document(

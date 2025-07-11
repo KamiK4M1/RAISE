@@ -21,7 +21,7 @@ pwd_context = CryptContext(schemes=["bcrypt"], deprecated="auto")
 security = HTTPBearer()
 
 # JWT Configuration
-SECRET_KEY = settings.secret_key if hasattr(settings, 'secret_key') else "your-secret-key-here-change-in-production"
+SECRET_KEY = settings.secret_key
 ALGORITHM = "HS256"
 ACCESS_TOKEN_EXPIRE_MINUTES = 1440  # 24 hours
 
@@ -48,12 +48,16 @@ def create_access_token(data: dict, expires_delta: Optional[timedelta] = None):
 async def verify_token(token: str) -> Optional[dict]:
     """Verify and decode JWT token"""
     try:
+        logger.info(f"Verifying token with SECRET_KEY length: {len(SECRET_KEY)}")
         payload = jwt.decode(token, SECRET_KEY, algorithms=[ALGORITHM])
         user_id: str = payload.get("sub")
         if user_id is None:
+            logger.warning("Token verification failed: no 'sub' field in payload")
             return None
+        logger.info(f"Token verified successfully for user: {user_id}")
         return {"user_id": user_id, "email": payload.get("email")}
-    except JWTError:
+    except JWTError as e:
+        logger.error(f"JWT verification failed: {e}")
         return None
 
 async def get_current_user(credentials: HTTPAuthorizationCredentials = Depends(security)):

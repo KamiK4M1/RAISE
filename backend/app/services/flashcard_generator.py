@@ -70,8 +70,8 @@ class FlashcardGenerator:
                     answer=card_data.get("answer", ""),
                     difficulty=card_data.get("difficulty", difficulty),
                     easeFactor=spaced_repetition.DEFAULT_EASE_FACTOR,
-                    interval=spaced_repetition.INITIAL_INTERVAL,
-                    nextReview=datetime.now(timezone.utc),
+                    interval=0,  # New cards start with 0 interval
+                    nextReview=datetime.now(timezone.utc) + timedelta(minutes=1),  # Available for study in 1 minute
                     createdAt=datetime.now(timezone.utc),
                     updatedAt=datetime.now(timezone.utc)
                 )
@@ -200,8 +200,8 @@ Ensure the flashcards are:
                     answer=card_data.get("answer", ""),
                     difficulty=card_data.get("difficulty", difficulty),
                     easeFactor=spaced_repetition.DEFAULT_EASE_FACTOR,
-                    interval=spaced_repetition.INITIAL_INTERVAL,
-                    nextReview=datetime.now(timezone.utc),
+                    interval=0,  # New cards start with 0 interval
+                    nextReview=datetime.now(timezone.utc) + timedelta(minutes=1),  # Available for study in 1 minute
                     createdAt=datetime.now(timezone.utc),
                     updatedAt=datetime.now(timezone.utc)
                 )

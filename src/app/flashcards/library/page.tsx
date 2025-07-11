@@ -85,6 +85,9 @@ export default function FlashcardLibraryPage() {
         apiService.listDocuments(),
       ])
 
+      console.log('Topics response:', topicsResponse)
+      console.log('Documents response:', documentsResponse)
+
       const sets: FlashcardSet[] = []
       let totalCards = 0
       let totalDue = 0
@@ -93,7 +96,7 @@ export default function FlashcardLibraryPage() {
       // Process topics
       if (topicsResponse.success && topicsResponse.data?.topics) {
         for (const topic of topicsResponse.data.topics) {
-          const topicName = topic.name || 'untitled'
+          const topicName = topic.topic_name || topic.name || 'untitled'
           const flashcardsResponse = await apiService.getFlashcardsByDocument(
             `topic_${topicName.replace(/\s+/g, '_')}`,
             0,
@@ -102,26 +105,30 @@ export default function FlashcardLibraryPage() {
           
           if (flashcardsResponse.success && flashcardsResponse.data?.flashcards) {
             const cards = flashcardsResponse.data.flashcards
-            const dueCount = cards.filter((card: any) => card.is_due).length
-            const masteredCount = cards.filter((card: any) => card.review_count >= 5).length
             
-            sets.push({
-              document_id: `topic_${topicName.replace(/\s+/g, '_')}`,
-              source_name: topicName,
-              filename: `${topicName}.topic`,
-              total_cards: cards.length,
-              due_count: dueCount,
-              mastered_count: masteredCount,
-              created_at: topic.created_at || new Date().toISOString(),
-              last_reviewed: topic.last_reviewed || new Date().toISOString(),
-              average_difficulty: topic.average_difficulty || 'medium',
-              completion_rate: cards.length > 0 ? (masteredCount / cards.length) * 100 : 0,
-              is_topic_based: true,
-            })
-            
-            totalCards += cards.length
-            totalDue += dueCount
-            totalMastered += masteredCount
+            // Only include topics that have flashcards
+            if (cards.length > 0) {
+              const dueCount = cards.filter((card: any) => card.is_due).length
+              const masteredCount = cards.filter((card: any) => card.review_count >= 5).length
+              
+              sets.push({
+                document_id: `topic_${topicName.replace(/\s+/g, '_')}`,
+                source_name: topicName,
+                filename: `${topicName}.topic`,
+                total_cards: cards.length,
+                due_count: dueCount,
+                mastered_count: masteredCount,
+                created_at: topic.created_at || new Date().toISOString(),
+                last_reviewed: topic.last_reviewed || new Date().toISOString(),
+                average_difficulty: topic.average_difficulty || 'medium',
+                completion_rate: (masteredCount / cards.length) * 100,
+                is_topic_based: true,
+              })
+              
+              totalCards += cards.length
+              totalDue += dueCount
+              totalMastered += masteredCount
+            }
           }
         }
       }
@@ -139,26 +146,30 @@ export default function FlashcardLibraryPage() {
           
           if (flashcardsResponse.success && flashcardsResponse.data?.flashcards) {
             const cards = flashcardsResponse.data.flashcards
-            const dueCount = cards.filter((card: any) => card.is_due).length
-            const masteredCount = cards.filter((card: any) => card.review_count >= 5).length
             
-            sets.push({
-              document_id: document.document_id,
-              source_name: document.filename || 'Untitled Document',
-              filename: document.filename || 'Untitled Document',
-              total_cards: cards.length,
-              due_count: dueCount,
-              mastered_count: masteredCount,
-              created_at: document.created_at || new Date().toISOString(),
-              last_reviewed: cards.length > 0 ? cards[0].created_at : document.created_at || new Date().toISOString(),
-              average_difficulty: 'medium',
-              completion_rate: cards.length > 0 ? (masteredCount / cards.length) * 100 : 0,
-              is_topic_based: false,
-            })
-            
-            totalCards += cards.length
-            totalDue += dueCount
-            totalMastered += masteredCount
+            // Only include documents that have flashcards
+            if (cards.length > 0) {
+              const dueCount = cards.filter((card: any) => card.is_due).length
+              const masteredCount = cards.filter((card: any) => card.review_count >= 5).length
+              
+              sets.push({
+                document_id: document.document_id,
+                source_name: document.filename || 'Untitled Document',
+                filename: document.filename || 'Untitled Document',
+                total_cards: cards.length,
+                due_count: dueCount,
+                mastered_count: masteredCount,
+                created_at: document.created_at || new Date().toISOString(),
+                last_reviewed: cards[0].created_at || document.created_at || new Date().toISOString(),
+                average_difficulty: 'medium',
+                completion_rate: (masteredCount / cards.length) * 100,
+                is_topic_based: false,
+              })
+              
+              totalCards += cards.length
+              totalDue += dueCount
+              totalMastered += masteredCount
+            }
           }
         }
       }

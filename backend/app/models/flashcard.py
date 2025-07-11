@@ -1,6 +1,6 @@
 from pydantic import BaseModel, Field, ConfigDict
 from typing import Optional, List
-from datetime import datetime
+from datetime import datetime, timezone
 
 class Flashcard(BaseModel):
     """Flashcard model for MongoDB"""
@@ -17,12 +17,12 @@ class Flashcard(BaseModel):
     difficulty: str = Field(default="medium", description="Difficulty level")
     easeFactor: float = Field(default=2.5, description="SM-2 ease factor")
     interval: int = Field(default=1, description="Days until next review")
-    nextReview: datetime = Field(default_factory=datetime.utcnow, description="Next review date")
+    nextReview: datetime = Field(default_factory=lambda: datetime.now(timezone.utc), description="Next review date")
     reviewCount: int = Field(default=0, description="Number of reviews")
     correctCount: int = Field(default=0, description="Number of correct answers")
     incorrectCount: int = Field(default=0, description="Number of incorrect answers")
-    createdAt: datetime = Field(default_factory=datetime.utcnow)
-    updatedAt: datetime = Field(default_factory=datetime.utcnow)
+    createdAt: datetime = Field(default_factory=lambda: datetime.now(timezone.utc))
+    updatedAt: datetime = Field(default_factory=lambda: datetime.now(timezone.utc))
 
 class FlashcardGenerateRequest(BaseModel):
     """Request for generating flashcards"""

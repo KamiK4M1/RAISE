@@ -99,6 +99,7 @@ class AdvancedAnalyticsService:
         # Database collections
         self.flashcard_collection = mongodb_manager.get_flashcards_collection()
         self.quiz_collection = mongodb_manager.get_quiz_attempts_collection()
+        self.quiz_main_collection = mongodb_manager.get_quizzes_collection()
         self.chat_collection = mongodb_manager.get_chat_messages_collection()
         self.document_collection = mongodb_manager.get_documents_collection()
         self.user_collection = mongodb_manager.get_users_collection()
@@ -126,7 +127,8 @@ class AdvancedAnalyticsService:
         return self.chat_collection
     
     def get_session_collection(self):
-        return mongodb_manager.get_collection("learning_sessions")
+        # Learning sessions are tracked in flashcards collection
+        return self.flashcard_collection
     
     def get_document_collection(self):
         return self.document_collection
@@ -417,7 +419,7 @@ class AdvancedAnalyticsService:
             
             # From quizzes
             async for attempt in self.quiz_collection.find({"user_id": user_id}):
-                quiz_collection = mongodb_manager.get_collection("quizzes")
+                quiz_collection = self.quiz_collection
                 quiz = await quiz_collection.find_one({"quiz_id": attempt.get("quiz_id")})
                 if quiz and quiz.get("document_id"):
                     engaged_docs.add(quiz["document_id"])
@@ -752,7 +754,7 @@ class AdvancedAnalyticsService:
             engagement_score += flashcard_count * 0.3
             
             # Count quiz attempts
-            quiz_collection = mongodb_manager.get_collection("quizzes")
+            quiz_collection = self.quiz_main_collection
             quizzes = []
             async for quiz in quiz_collection.find({"document_id": document_id}):
                 quizzes.append(quiz["quiz_id"])
@@ -1250,11 +1252,13 @@ class AdvancedAnalyticsService:
     async def get_user_analytics(self, user_id: str, days: int = 30) -> UserAnalytics:
         """Get comprehensive analytics for a user"""
         try:
+            logger.info(f"Getting analytics for user_id: {user_id}, days: {days}")
             end_date = datetime.now(timezone.utc)
             start_date = end_date - timedelta(days=days)
             
             # Get flashcard stats
             flashcard_stats = await self._get_flashcard_analytics(user_id, start_date, end_date)
+            logger.info(f"Flashcard stats for user {user_id}: {flashcard_stats}")
             
             # Get quiz stats
             quiz_stats = await self._get_quiz_analytics(user_id, start_date, end_date)
@@ -1290,49 +1294,67 @@ class AdvancedAnalyticsService:
     async def _get_flashcard_analytics(self, user_id: str, start_date: datetime, end_date: datetime) -> Dict[str, Any]:
         """Get flashcard analytics for user"""
         try:
-            # Get flashcard reviews in period
-            flashcard_collection = mongodb_manager.get_collection("flashcard_reviews")
-            reviews = []
+            from bson import ObjectId
             
-            async for review in flashcard_collection.find({
-                "user_id": user_id,
-                "reviewed_at": {"$gte": start_date, "$lte": end_date}
-            }):
-                reviews.append(review)
+            # Get user's flashcards (changed to look at flashcards, not reviews)
+            flashcard_collection = self.flashcard_collection
+            flashcards = []
             
-            if not reviews:
+            # Try both string and ObjectId user_id formats
+            query_conditions = [
+                {"user_id": user_id},
+                {"user_id": ObjectId(user_id)} if ObjectId.is_valid(user_id) else None
+            ]
+            query_conditions = [q for q in query_conditions if q is not None]
+            
+            for query in query_conditions:
+                async for flashcard in flashcard_collection.find(query):
+                    flashcards.append(flashcard)
+                if flashcards:  # If we found flashcards with this query, stop trying
+                    break
+            
+            logger.info(f"Found {len(flashcards)} flashcards for user_id: {user_id}")
+            
+            if not flashcards:
                 return {
                     "total_reviews": 0,
+                    "total_cards": 0,
                     "average_quality": 0,
                     "retention_rate": 0,
                     "streak_days": 0,
                     "cards_mastered": 0
                 }
             
-            # Calculate metrics
-            total_reviews = len(reviews)
-            average_quality = sum(r.get("quality", 0) for r in reviews) / total_reviews
+            # Calculate metrics from flashcard data
+            total_reviews = sum(card.get("review_count", 0) for card in flashcards)
+            total_correct = sum(card.get("correct_count", 0) for card in flashcards)
+            total_incorrect = sum(card.get("incorrect_count", 0) for card in flashcards)
             
-            # Calculate retention rate (quality >= 3)
-            good_reviews = sum(1 for r in reviews if r.get("quality", 0) >= 3)
-            retention_rate = (good_reviews / total_reviews) * 100 if total_reviews > 0 else 0
+            # Calculate average quality based on correct/total ratio
+            if total_reviews > 0:
+                accuracy = total_correct / total_reviews
+                # Convert accuracy to quality scale (0-5)
+                average_quality = accuracy * 5
+            else:
+                average_quality = 0
+            
+            # Calculate retention rate (percentage of correct answers)
+            retention_rate = (total_correct / total_reviews) * 100 if total_reviews > 0 else 0
             
             # Calculate streak
             streak_days = await self._calculate_study_streak(user_id)
             
-            # Count mastered cards (quality 5 in last review)
+            # Count mastered cards (cards with high accuracy and multiple reviews)
             mastered_cards = 0
-            card_last_quality = {}
-            
-            for review in sorted(reviews, key=lambda x: x.get("reviewed_at", datetime.min)):
-                card_id = review.get("card_id")
-                if card_id:
-                    card_last_quality[card_id] = review.get("quality", 0)
-            
-            mastered_cards = sum(1 for quality in card_last_quality.values() if quality >= 5)
+            for card in flashcards:
+                review_count = card.get("review_count", 0)
+                correct_count = card.get("correct_count", 0)
+                if review_count >= 3 and correct_count >= review_count * 0.8:  # 80% accuracy with at least 3 reviews
+                    mastered_cards += 1
             
             return {
                 "total_reviews": total_reviews,
+                "total_cards": len(flashcards),  # Add total flashcard count
                 "average_quality": round(average_quality, 2),
                 "retention_rate": round(retention_rate, 2),
                 "streak_days": streak_days,
@@ -1341,7 +1363,7 @@ class AdvancedAnalyticsService:
             
         except Exception as e:
             logger.error(f"Error getting flashcard analytics: {e}")
-            return {"total_reviews": 0, "average_quality": 0, "retention_rate": 0, "streak_days": 0, "cards_mastered": 0}
+            return {"total_reviews": 0, "total_cards": 0, "average_quality": 0, "retention_rate": 0, "streak_days": 0, "cards_mastered": 0}
 
     async def _get_quiz_analytics(self, user_id: str, start_date: datetime, end_date: datetime) -> Dict[str, Any]:
         """Get quiz analytics for user"""
@@ -1465,16 +1487,17 @@ class AdvancedAnalyticsService:
             # Get all learning activities
             activities = []
             
-            # Flashcard reviews
-            flashcard_collection = mongodb_manager.get_collection("flashcard_reviews")
-            async for review in flashcard_collection.find({
+            # Flashcard reviews (use updated_at from flashcards that have been reviewed)
+            flashcard_collection = self.flashcard_collection
+            async for flashcard in flashcard_collection.find({
                 "user_id": user_id,
-                "reviewed_at": {"$gte": start_date, "$lte": end_date}
+                "review_count": {"$gt": 0},
+                "updated_at": {"$gte": start_date, "$lte": end_date}
             }):
                 activities.append({
                     "type": "flashcard",
-                    "timestamp": review.get("reviewed_at"),
-                    "duration": review.get("time_taken", 30)  # Default 30 seconds
+                    "timestamp": flashcard.get("updated_at"),
+                    "duration": 30 * flashcard.get("review_count", 1)  # Estimate 30 seconds per review
                 })
             
             # Quiz attempts
@@ -1540,17 +1563,48 @@ class AdvancedAnalyticsService:
             total_days = (end_date - start_date).days
             consistency_score = (len(study_days) / total_days) * 100 if total_days > 0 else 0
             
+            # Generate weekly activity data
+            weekly_activity = []
+            day_names = ["จันทร์", "อังคาร", "พุธ", "พฤหัสบดี", "ศุกร์", "เสาร์", "อาทิตย์"]
+            day_totals = {day: 0 for day in day_names}
+            
+            # Group activities by day
+            for activity in activities:
+                if activity["timestamp"]:
+                    day_name = activity["timestamp"].strftime("%A")
+                    thai_day_map = {
+                        "Monday": "จันทร์", "Tuesday": "อังคาร", "Wednesday": "พุธ",
+                        "Thursday": "พฤหัสบดี", "Friday": "ศุกร์", "Saturday": "เสาร์", "Sunday": "อาทิตย์"
+                    }
+                    thai_day = thai_day_map.get(day_name, day_name)
+                    if thai_day in day_totals:
+                        day_totals[thai_day] += activity["duration"]
+            
+            for day in day_names:
+                weekly_activity.append({
+                    "day": day[:2],  # Short form: จ, อ, พ, etc.
+                    "hours_studied": round(day_totals[day] / 3600, 1)  # Convert seconds to hours
+                })
+
             return {
                 "total_study_time": round(total_study_time, 1),
                 "average_session_length": round(average_session_length / 60, 1),  # minutes
                 "most_active_day": most_active_day,
                 "most_active_hour": most_active_hour,
-                "consistency_score": round(consistency_score, 1)
+                "consistency_score": round(consistency_score, 1),
+                "weekly_activity": weekly_activity
             }
             
         except Exception as e:
             logger.error(f"Error getting study patterns: {e}")
-            return {"total_study_time": 0, "average_session_length": 0, "most_active_day": "unknown", "most_active_hour": 0, "consistency_score": 0}
+            return {
+                "total_study_time": 0, 
+                "average_session_length": 0, 
+                "most_active_day": "unknown", 
+                "most_active_hour": 0, 
+                "consistency_score": 0,
+                "weekly_activity": []
+            }
 
     def _group_activities_into_sessions(self, activities: List[Dict], gap_minutes: int = 30) -> List[Dict]:
         """Group activities into sessions based on time gaps"""
@@ -1599,17 +1653,15 @@ class AdvancedAnalyticsService:
             studied_docs = set()
             
             # From flashcards
-            flashcard_collection = mongodb_manager.get_collection("flashcard_reviews")
-            async for review in flashcard_collection.find({"user_id": user_id}):
-                flashcard_col = self.get_flashcard_collection()
-                flashcard = await flashcard_col.find_one({"card_id": review.get("card_id")})
-                if flashcard:
+            flashcard_collection = self.flashcard_collection
+            async for flashcard in flashcard_collection.find({"user_id": user_id}):
+                if flashcard.get("document_id"):
                     studied_docs.add(flashcard.get("document_id"))
             
             # From quizzes
             quiz_collection = self.get_quiz_collection()
             async for attempt in quiz_collection.find({"user_id": user_id}):
-                quiz_col = mongodb_manager.get_collection("quizzes")
+                quiz_col = self.quiz_main_collection
                 quiz = await quiz_col.find_one({"quiz_id": attempt.get("quiz_id")})
                 if quiz:
                     studied_docs.add(quiz.get("document_id"))
@@ -1670,11 +1722,14 @@ class AdvancedAnalyticsService:
             # Get all learning activities sorted by date
             activities = []
             
-            # Get flashcard reviews
-            flashcard_collection = mongodb_manager.get_collection("flashcard_reviews")
-            async for review in flashcard_collection.find({"user_id": user_id}):
-                if review.get("reviewed_at"):
-                    activities.append(review["reviewed_at"])
+            # Get flashcards with updates (use updated_at as proxy for review activity)
+            flashcard_collection = self.flashcard_collection
+            async for flashcard in flashcard_collection.find({
+                "user_id": user_id,
+                "review_count": {"$gt": 0}  # Only cards that have been reviewed
+            }):
+                if flashcard.get("updated_at"):
+                    activities.append(flashcard["updated_at"])
             
             # Get quiz attempts
             quiz_collection = self.get_quiz_collection()
@@ -1770,7 +1825,7 @@ class AdvancedAnalyticsService:
                     priority="low"
                 ))
             
-            flashcard_collection = mongodb_manager.get_collection("flashcard_reviews")
+            flashcard_collection = self.flashcard_collection
             flashcard_count = await flashcard_collection.count_documents({"user_id": user_id})
             if flashcard_count == 0:
                 recommendations.append(StudyRecommendation(
@@ -1806,15 +1861,13 @@ class AdvancedAnalyticsService:
             
             flashcard_reviews = 0
             if flashcards:
-                flashcard_ids = [f["card_id"] for f in flashcards]
-                flashcard_review_collection = mongodb_manager.get_collection("flashcard_reviews")
-                async for review in flashcard_review_collection.find({"card_id": {"$in": flashcard_ids}}):
-                    unique_users.add(review.get("user_id"))
-                    flashcard_reviews += 1
+                for flashcard in flashcards:
+                    unique_users.add(flashcard.get("user_id"))
+                    flashcard_reviews += flashcard.get("review_count", 0)
             
             # From quizzes
             quizzes = []
-            quiz_main_collection = mongodb_manager.get_collection("quizzes")
+            quiz_main_collection = self.quiz_main_collection
             async for quiz in quiz_main_collection.find({"document_id": document_id}):
                 quizzes.append(quiz)
             
@@ -1870,10 +1923,10 @@ class AdvancedAnalyticsService:
             # Count total users (unique from all collections)
             all_users = set()
             
-            # From flashcard reviews
-            flashcard_collection = mongodb_manager.get_collection("flashcard_reviews")
-            async for review in flashcard_collection.find():
-                all_users.add(review.get("user_id"))
+            # From flashcards
+            flashcard_collection = self.flashcard_collection
+            async for flashcard in flashcard_collection.find():
+                all_users.add(flashcard.get("user_id"))
             
             # From quiz attempts
             quiz_collection = self.get_quiz_collection()
@@ -1892,13 +1945,18 @@ class AdvancedAnalyticsService:
             total_documents = await document_collection.count_documents({})
             
             # Count activities
-            total_flashcard_reviews = await flashcard_collection.count_documents({})
+            total_flashcard_reviews = 0
+            async for flashcard in flashcard_collection.find():
+                total_flashcard_reviews += flashcard.get("review_count", 0)
+            
             total_quiz_attempts = await quiz_collection.count_documents({})
             total_chat_questions = await chat_collection.count_documents({})
             
             # Recent activity (last 7 days)
             week_ago = datetime.now(timezone.utc) - timedelta(days=7)
-            recent_flashcard_reviews = await flashcard_collection.count_documents({"reviewed_at": {"$gte": week_ago}})
+            recent_flashcard_reviews = 0
+            async for flashcard in flashcard_collection.find({"updated_at": {"$gte": week_ago}}):
+                recent_flashcard_reviews += flashcard.get("review_count", 0)
             recent_quiz_attempts = await quiz_collection.count_documents({"completed_at": {"$gte": week_ago}})
             recent_chat_questions = await chat_collection.count_documents({"created_at": {"$gte": week_ago}})
             

@@ -4,6 +4,7 @@ import logging
 from datetime import datetime, timezone
 
 from app.services.analytics_service import AnalyticsService, get_analytics_service
+from app.services.spaced_repetition import get_spaced_repetition_service
 from app.models.analytics import AnalyticsResponse
 from app.core.dependencies import get_current_user_id
 
@@ -193,3 +194,138 @@ async def get_recent_activity(
     except Exception as e:
         logger.error(f"Error getting recent activities: {e}")
         raise HTTPException(status_code=500, detail="Error retrieving recent activities.")
+
+@router.get("/forgetting-curve", response_model=AnalyticsResponse)
+async def get_forgetting_curve(
+    days_back: int = Query(90, ge=30, le=365, description="Number of days to analyze"),
+    user_id: str = Depends(get_current_user_id),
+    spaced_repetition_service = Depends(get_spaced_repetition_service)
+):
+    """Get forgetting curve analysis for user's flashcards"""
+    try:
+        forgetting_curve = await spaced_repetition_service.analyze_forgetting_curve(user_id, days_back)
+        
+        return AnalyticsResponse(
+            success=True,
+            data={
+                "forgetting_curve": [
+                    {
+                        "interval_days": point.interval_days,
+                        "retention_rate": point.retention_rate,
+                        "review_count": point.review_count,
+                        "average_quality": point.average_quality,
+                        "confidence_interval": point.confidence_interval
+                    }
+                    for point in forgetting_curve
+                ],
+                "analysis_period_days": days_back,
+                "total_data_points": len(forgetting_curve)
+            },
+            message="Forgetting curve analysis retrieved successfully.",
+            timestamp=datetime.now(timezone.utc).isoformat() + "Z"
+        )
+
+    except Exception as e:
+        logger.error(f"Error getting forgetting curve: {e}")
+        raise HTTPException(status_code=500, detail="Error retrieving forgetting curve analysis.")
+
+@router.get("/learning-recommendations", response_model=AnalyticsResponse)
+async def get_learning_recommendations(
+    user_id: str = Depends(get_current_user_id),
+    spaced_repetition_service = Depends(get_spaced_repetition_service)
+):
+    """Get AI-powered learning recommendations"""
+    try:
+        recommendations = await spaced_repetition_service.generate_learning_recommendations(user_id)
+        
+        return AnalyticsResponse(
+            success=True,
+            data={
+                "recommendations": [
+                    {
+                        "type": rec.type,
+                        "priority": rec.priority,
+                        "title": rec.title,
+                        "description": rec.description,
+                        "action_items": rec.action_items,
+                        "estimated_improvement": rec.estimated_improvement
+                    }
+                    for rec in recommendations
+                ],
+                "total_recommendations": len(recommendations)
+            },
+            message="Learning recommendations retrieved successfully.",
+            timestamp=datetime.now(timezone.utc).isoformat() + "Z"
+        )
+
+    except Exception as e:
+        logger.error(f"Error getting learning recommendations: {e}")
+        raise HTTPException(status_code=500, detail="Error retrieving learning recommendations.")
+
+@router.get("/learning-statistics", response_model=AnalyticsResponse)
+async def get_learning_statistics(
+    days_back: int = Query(30, ge=1, le=365, description="Number of days to analyze"),
+    user_id: str = Depends(get_current_user_id),
+    spaced_repetition_service = Depends(get_spaced_repetition_service)
+):
+    """Get detailed learning statistics from spaced repetition system"""
+    try:
+        stats = await spaced_repetition_service.get_learning_statistics(user_id, days_back)
+        
+        return AnalyticsResponse(
+            success=True,
+            data={
+                "learning_statistics": {
+                    "total_reviews": stats.total_reviews,
+                    "correct_reviews": stats.correct_reviews,
+                    "accuracy_rate": stats.accuracy_rate,
+                    "average_ease_factor": stats.average_ease_factor,
+                    "total_study_time": stats.total_study_time,
+                    "cards_due_today": stats.cards_due_today,
+                    "cards_learned_today": stats.cards_learned_today,
+                    "retention_rate": stats.retention_rate,
+                    "predicted_workload": stats.predicted_workload,
+                    "learning_velocity": stats.learning_velocity,
+                    "consistency_score": stats.consistency_score
+                },
+                "analysis_period_days": days_back
+            },
+            message="Learning statistics retrieved successfully.",
+            timestamp=datetime.now(timezone.utc).isoformat() + "Z"
+        )
+
+    except Exception as e:
+        logger.error(f"Error getting learning statistics: {e}")
+        raise HTTPException(status_code=500, detail="Error retrieving learning statistics.")
+
+@router.get("/study-schedule", response_model=AnalyticsResponse)
+async def get_optimized_study_schedule(
+    target_daily_reviews: int = Query(50, ge=10, le=200, description="Target reviews per day"),
+    max_new_cards: int = Query(10, ge=0, le=50, description="Maximum new cards per day"),
+    available_time_minutes: int = Query(30, ge=15, le=180, description="Available study time in minutes"),
+    user_id: str = Depends(get_current_user_id),
+    spaced_repetition_service = Depends(get_spaced_repetition_service)
+):
+    """Get optimized study schedule recommendation"""
+    try:
+        schedule = await spaced_repetition_service.optimize_study_schedule(
+            user_id, target_daily_reviews, max_new_cards, available_time_minutes
+        )
+        
+        return AnalyticsResponse(
+            success=True,
+            data={
+                "optimized_schedule": schedule,
+                "parameters": {
+                    "target_daily_reviews": target_daily_reviews,
+                    "max_new_cards": max_new_cards,
+                    "available_time_minutes": available_time_minutes
+                }
+            },
+            message="Optimized study schedule generated successfully.",
+            timestamp=datetime.now(timezone.utc).isoformat() + "Z"
+        )
+
+    except Exception as e:
+        logger.error(f"Error generating study schedule: {e}")
+        raise HTTPException(status_code=500, detail="Error generating optimized study schedule.")

@@ -5,16 +5,6 @@ export interface ApiResponse<T> {
   timestamp: string;
 }
 
-export interface ApiError {
-  success: false;
-  error: {
-    code: string;
-    message: string;
-    details?: string;
-  };
-  timestamp: string;
-}
-
 export interface Document {
   document_id: string;
   filename: string;
@@ -113,7 +103,7 @@ export interface QuizResults {
 
 export interface ChatMessage {
   chat_id: string;
-  session_id?: string;
+  session__id?: string;
   document_id: string;
   question: string;
   answer: string;
@@ -154,6 +144,7 @@ export interface UserAnalytics {
   period_days: number;
   flashcard_stats: {
     total_reviews: number;
+    total_cards: number;
     average_quality: number;
     retention_rate: number;
     streak_days: number;
@@ -181,6 +172,7 @@ export interface UserAnalytics {
     most_active_hour: number;
     consistency_score: number;
     weekly_activity: Array<{
+      score: any;
       day: string;
       hours_studied: number;
     }>;
@@ -197,5 +189,10 @@ export interface UserAnalytics {
     description: string;
     priority: string;
     created_at: string;
+  }>;
+  forgetting_curve: Array<{
+    date: string;
+    retention_rate: number;
+    predicted_retention: number;
   }>;
 }

@@ -13,7 +13,7 @@ from app.models.document import DocumentAPIResponse
 from app.services.flashcard_service import flashcard_service
 from app.services.flashcard_generator import flashcard_generator
 # FIX 1: Import the getter function instead of the class
-from app.services.spaced_repetition import get_spaced_repetition_service
+from app.services.spaced_repetition import get_spaced_repetition_service, ensure_timezone_aware
 from app.core.auth import get_current_user_id, get_current_user
 
 logger = logging.getLogger(__name__)
@@ -335,7 +335,7 @@ async def get_all_user_flashcards(
                 "ease_factor": card.easeFactor,
                 "interval": card.interval,
                 "urgency": spaced_repetition.get_review_urgency(card.nextReview),
-                "is_due": card.nextReview <= datetime.now(timezone.utc) if card.nextReview.tzinfo else card.nextReview <= datetime.now()
+                "is_due": ensure_timezone_aware(card.nextReview) <= datetime.now(timezone.utc)
             })
         
         return DocumentAPIResponse(
@@ -386,7 +386,7 @@ async def get_flashcards_by_document(
                 "ease_factor": card.easeFactor,
                 "interval": card.interval,
                 "urgency": spaced_repetition.get_review_urgency(card.nextReview),
-                "is_due": card.nextReview <= datetime.now(timezone.utc) if card.nextReview.tzinfo else card.nextReview <= datetime.now()
+                "is_due": ensure_timezone_aware(card.nextReview) <= datetime.now(timezone.utc)
             })
         
         # Determine if this is a topic-based collection

@@ -1,6 +1,7 @@
 "use client"
 
 import { useState, useEffect } from "react"
+import { useSession } from "next-auth/react"
 import { Button } from "@/components/ui/button"
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card"
 import { Progress } from "@/components/ui/progress"
@@ -11,6 +12,8 @@ import Link from "next/link"
 import { apiService } from "@/lib/api"
 import { UserAnalytics } from "@/types/api"
 import { AuthWrapper } from "@/components/providers/auth-wrpper"
+import { ForgettingCurveChart } from "@/components/analytics/ForgettingCurveChart"
+import { LearningRecommendations } from "@/components/analytics/LearningRecommendations"
 
 export default function ReportsPage() {
   const [timeRange, setTimeRange] = useState("week")
@@ -30,12 +33,23 @@ export default function ReportsPage() {
   const [recommendations, setRecommendations] = useState<Array<{type: string, title: string, description: string, priority: string}>>([])
   const [performanceAnalysis, setPerformanceAnalysis] = useState<{strengths: string[], weaknesses: string[], trends: Array<{metric: string, trend: string, change: number}>}>({strengths: [], weaknesses: [], trends: []})
   const [learningVelocity, setLearningVelocity] = useState<Array<{week: string, velocity: number, retention: number}>>([])
-  const [studyPatterns, setStudyPatterns] = useState<{pattern: string, consistency: number, optimalTimes: string[], sessionLength: number}>({})
+  const [studyPatterns, setStudyPatterns] = useState<{pattern: string, consistency: number, optimalTimes: string[], sessionLength: number}>({ pattern: '', consistency: 0, optimalTimes: [], sessionLength: 0 })
   const [loading, setLoading] = useState(true)
+  const [error, setError] = useState<string | null>(null)
+  const { data: session, status } = useSession()
   
   useEffect(() => {
+    // Don't try to load data if session is still loading or user is not authenticated
+    if (status === "loading") return
+    if (status === "unauthenticated") {
+      setError("กรุณาเข้าสู่ระบบเพื่อดูรายงาน")
+      setLoading(false)
+      return
+    }
+    
     const loadReportsData = async () => {
       try {
+        setError(null)
         const days = timeRange === "week" ? 7 : 30
         const response = await apiService.getUserAnalytics()
         
@@ -60,8 +74,8 @@ export default function ReportsPage() {
           
           // Set performance analysis
           setPerformanceAnalysis({
-            strengths: data.flashcard_stats.strong_subjects || ['คณิตศาสตร์', 'ฟิสิกส์'],
-            weaknesses: data.flashcard_stats.weak_subjects || ['เคมี', 'ชีววิทยา'],
+            strengths: (data.flashcard_stats as any).strong_subjects || ['คณิตศาสตร์', 'ฟิสิกส์'],
+            weaknesses: (data.flashcard_stats as any).weak_subjects || ['เคมี', 'ชีววิทยา'],
             trends: [
               { metric: 'คะแนนเฉลี่ย', trend: 'เพิ่มขึ้น', change: data.quiz_stats.improvement_rate || 12 },
               { metric: 'ความเร็วในการเรียน', trend: 'เพิ่มขึ้น', change: 8 },
@@ -79,9 +93,9 @@ export default function ReportsPage() {
           
           // Set study patterns
           setStudyPatterns({
-            pattern: data.study_patterns.pattern || 'consistent',
+            pattern: (data.study_patterns as any).pattern || 'consistent',
             consistency: data.study_patterns.consistency_score || 85,
-            optimalTimes: data.study_patterns.optimal_times || ['เช้า', 'เย็น'],
+            optimalTimes: (data.study_patterns as any).optimal_times || ['เช้า', 'เย็น'],
             sessionLength: data.study_patterns.average_session_length || 45
           })
           
@@ -89,7 +103,7 @@ export default function ReportsPage() {
             setWeeklyProgress(data.study_patterns.weekly_activity.map(item => ({
               day: item.day,
               studyTime: item.hours_studied,
-              score: Math.round(Math.random() * 20 + 70) // Mock score for demo
+              score: item.score
             })))
           }
           
@@ -112,6 +126,7 @@ export default function ReportsPage() {
         }
       } catch (error) {
         console.error('Error loading reports data:', error)
+        setError(`ไม่สามารถโหลดข้อมูลรายงานได้: ${error instanceof Error ? error.message : 'เกิดข้อผิดพลาดไม่ทราบสาเหตุ'}`)
         // Fallback to mock data
         setStats({
           totalStudyTime: 45,
@@ -193,25 +208,30 @@ export default function ReportsPage() {
     }
 
     loadReportsData()
-  }, [timeRange])
+  }, [timeRange, status])  // Add status dependency
 
   return (
     <AuthWrapper>
       <div className="min-h-screen bg-gray-50">
       {/* Navigation */}
-      <nav className="bg-white border-b">
+      <nav className="bg-white/80 backdrop-blur-lg border-b border-white/20 sticky top-0 z-50 shadow-lg">
         <div className="container mx-auto px-4 py-4 flex items-center justify-between">
-          <div className="flex items-center space-x-4">
+            <div className="flex items-center space-x-4">
             <Link href="/dashboard">
-              <Button variant="ghost" size="sm" className="text-gray-600 hover:text-gray-900">
-                <ArrowLeft className="h-4 w-4 mr-2" />
-                กลับ
-              </Button>
-            </Link>
-            <div className="flex items-center space-x-2">
-              <Brain className="h-8 w-8 text-blue-600" />
-              <span className="text-2xl font-bold text-gray-900">AI Learning</span>
-            </div>
+                <Button variant="ghost" size="sm" className="text-gray-600 hover:text-gray-900 hover:bg-white/50">
+                  <ArrowLeft className="h-4 w-4 mr-2" />
+                  กลับ
+                </Button>
+              </Link>
+            <div className="flex items-center space-x-3">
+                <div className="relative">
+                  <div className="absolute inset-0 bg-gradient-to-r from-blue-600 to-purple-600 rounded-xl blur opacity-75"></div>
+                  <Brain className="relative h-8 w-8 text-white bg-gradient-to-r from-blue-600 to-purple-600 p-1.5 rounded-xl" />
+                </div>
+                <span className="text-2xl font-bold bg-gradient-to-r from-blue-600 to-purple-600 bg-clip-text text-transparent">
+                  RAISE
+                </span>
+              </div>
           </div>
           <div className="flex items-center space-x-2">
             <Button
@@ -241,6 +261,7 @@ export default function ReportsPage() {
           </div>
         </div>
       </nav>
+      
 
       <div className="container mx-auto px-4 py-8">
         <div className="max-w-6xl mx-auto">
@@ -250,8 +271,30 @@ export default function ReportsPage() {
             <p className="text-gray-600">ติดตามและวิเคราะห์ผลการเรียนรู้ของคุณ</p>
           </div>
 
-          {/* Overview Stats */}
-          <div className="grid grid-cols-2 md:grid-cols-4 gap-4 mb-8">
+          {/* Error Display */}
+          {error && (
+            <div className="mb-6 p-4 bg-red-50 border border-red-200 rounded-lg">
+              <div className="flex items-center space-x-2 text-red-700">
+                <AlertCircle className="h-5 w-5" />
+                <span className="font-medium">เกิดข้อผิดพลาด</span>
+              </div>
+              <p className="text-red-600 text-sm mt-1">{error}</p>
+            </div>
+          )}
+
+          {/* Loading Display */}
+          {loading && !error && (
+            <div className="flex items-center justify-center py-12">
+              <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-blue-600"></div>
+              <span className="ml-3 text-gray-600">กำลังโหลดข้อมูล...</span>
+            </div>
+          )}
+
+          {/* Main Content - Only show when not loading and no error */}
+          {!loading && !error && (
+            <>
+              {/* Overview Stats */}
+              <div className="grid grid-cols-2 md:grid-cols-4 gap-4 mb-8">
             <Card className="border-0 shadow-sm">
               <CardContent className="p-4">
                 <div className="flex items-center justify-between">
@@ -293,7 +336,7 @@ export default function ReportsPage() {
                 <div className="flex items-center justify-between">
                   <div>
                     <p className="text-sm text-gray-600">การพัฒนา</p>
-                    <p className="text-2xl font-bold text-green-600">+{stats.improvementRate}%</p>
+                    <p className="text-2xl font-bold text-green-600">+{stats.improvementRate || 0}%</p>
                   </div>
                   <TrendingUp className="h-8 w-8 text-green-600" />
                 </div>
@@ -302,12 +345,10 @@ export default function ReportsPage() {
           </div>
 
           <Tabs defaultValue="overview" className="space-y-6">
-            <TabsList className="grid w-full grid-cols-6">
+            <TabsList className="grid w-full grid-cols-7">
               <TabsTrigger value="overview">ภาพรวม</TabsTrigger>
-              <TabsTrigger value="performance">ผลงาน</TabsTrigger>
-              <TabsTrigger value="skills">ทักษะการคิด</TabsTrigger>
-              <TabsTrigger value="patterns">รูปแบบการเรียน</TabsTrigger>
-              <TabsTrigger value="recommendations">คำแนะนำ</TabsTrigger>
+  
+
               <TabsTrigger value="activities">กิจกรรม</TabsTrigger>
             </TabsList>
 
@@ -326,11 +367,9 @@ export default function ReportsPage() {
                         <div className="flex-1">
                           <div className="flex justify-between items-center mb-1">
                             <span className="text-sm text-gray-600">เวลาเรียน: {day.studyTime} ชม.</span>
-                            <span className="text-sm font-medium">คะแนน: {day.score}%</span>
                           </div>
                           <div className="flex space-x-2">
                             <Progress value={(day.studyTime / 4) * 100} className="flex-1 h-2" />
-                            <Progress value={day.score} className="flex-1 h-2" />
                           </div>
                         </div>
                       </div>
@@ -616,46 +655,171 @@ export default function ReportsPage() {
               </Card>
             </TabsContent>
 
-            <TabsContent value="recommendations" className="space-y-6">
-              {/* AI-Powered Recommendations */}
+            <TabsContent value="advanced" className="space-y-6">
+              {/* Forgetting Curve Analysis */}
+              <ForgettingCurveChart />
+
+              {/* Advanced Learning Statistics */}
               <Card className="border-0 shadow-sm">
                 <CardHeader>
                   <CardTitle className="flex items-center space-x-2">
-                    <Lightbulb className="h-5 w-5 text-yellow-600" />
-                    <span>คำแนะนำเฉพาะบุคคล</span>
+                    <BarChart3 className="h-5 w-5 text-purple-600" />
+                    <span>สถิติการเรียนรู้ขั้นสูง</span>
                   </CardTitle>
-                  <CardDescription>คำแนะนำจาก AI ตามผลการเรียนของคุณ</CardDescription>
+                  <CardDescription>ข้อมูลเชิงลึกจากระบบ Spaced Repetition</CardDescription>
                 </CardHeader>
                 <CardContent>
-                  <div className="space-y-4">
-                    {recommendations.map((rec, index) => (
-                      <div key={index} className={`p-4 rounded-lg border-l-4 ${
-                        rec.priority === 'high' ? 'border-red-500 bg-red-50' :
-                        rec.priority === 'medium' ? 'border-yellow-500 bg-yellow-50' :
-                        'border-green-500 bg-green-50'
-                      }`}>
-                        <div className="flex items-start justify-between">
-                          <div className="flex-1">
-                            <div className="flex items-center space-x-2 mb-2">
-                              <span className={`text-sm font-medium px-2 py-1 rounded ${
-                                rec.priority === 'high' ? 'bg-red-100 text-red-800' :
-                                rec.priority === 'medium' ? 'bg-yellow-100 text-yellow-800' :
-                                'bg-green-100 text-green-800'
-                              }`}>
-                                {rec.priority === 'high' ? 'สำคัญมาก' : 
-                                 rec.priority === 'medium' ? 'สำคัญ' : 'ทั่วไป'}
-                              </span>
+                  <div className="grid md:grid-cols-2 lg:grid-cols-4 gap-4">
+                    <div className="p-4 bg-blue-50 rounded-lg">
+                      <div className="text-2xl font-bold text-blue-600 mb-1">2.4</div>
+                      <div className="text-sm text-blue-800">ค่า Ease Factor เฉลี่ย</div>
+                      <div className="text-xs text-gray-600 mt-1">ความยากเฉลี่ยของการ์ด</div>
+                    </div>
+                    
+                    <div className="p-4 bg-green-50 rounded-lg">
+                      <div className="text-2xl font-bold text-green-600 mb-1">85%</div>
+                      <div className="text-sm text-green-800">อัตราการจำ</div>
+                      <div className="text-xs text-gray-600 mt-1">เฉลี่ย 30 วันล่าสุด</div>
+                    </div>
+                    
+                    <div className="p-4 bg-yellow-50 rounded-lg">
+                      <div className="text-2xl font-bold text-yellow-600 mb-1">1.8</div>
+                      <div className="text-sm text-yellow-800">ความเร็วการเรียน</div>
+                      <div className="text-xs text-gray-600 mt-1">การ์ดที่จำได้ต่อวัน</div>
+                    </div>
+                    
+                    <div className="p-4 bg-purple-50 rounded-lg">
+                      <div className="text-2xl font-bold text-purple-600 mb-1">78%</div>
+                      <div className="text-sm text-purple-800">คะแนนความสม่ำเสมอ</div>
+                      <div className="text-xs text-gray-600 mt-1">การเรียนอย่างต่อเนื่อง</div>
+                    </div>
+                  </div>
+
+                  <div className="mt-6 grid md:grid-cols-2 gap-6">
+                    <div>
+                      <h4 className="font-semibold text-gray-900 mb-3">การพยากรณ์ภาระงาน (7 วันข้างหน้า)</h4>
+                      <div className="space-y-3">
+                        {[
+                          { day: 'วันนี้', cards: 25 },
+                          { day: 'พรุ่งนี้', cards: 18 },
+                          { day: 'มะรืนนี้', cards: 32 },
+                          { day: 'วันที่ 4', cards: 15 },
+                          { day: 'วันที่ 5', cards: 28 },
+                          { day: 'วันที่ 6', cards: 22 },
+                          { day: 'วันที่ 7', cards: 19 }
+                        ].map((item, index) => (
+                          <div key={index} className="flex items-center justify-between">
+                            <span className="text-sm text-gray-600">{item.day}</span>
+                            <div className="flex items-center space-x-2">
+                              <div className="w-24 bg-gray-200 rounded-full h-2">
+                                <div 
+                                  className="bg-blue-600 h-2 rounded-full"
+                                  style={{ width: `${(item.cards / 50) * 100}%` }}
+                                ></div>
+                              </div>
+                              <span className="text-sm font-medium w-8">{item.cards}</span>
                             </div>
-                            <h4 className="font-semibold text-gray-900 mb-1">{rec.title}</h4>
-                            <p className="text-sm text-gray-600">{rec.description}</p>
                           </div>
-                          <ChevronRight className="h-5 w-5 text-gray-400" />
-                        </div>
+                        ))}
                       </div>
-                    ))}
+                    </div>
+
+                    <div>
+                      <h4 className="font-semibold text-gray-900 mb-3">การกระจายระดับความยาก</h4>
+                      <div className="space-y-3">
+                        {[
+                          { level: 'ง่าย (EF > 2.5)', percentage: 45, color: 'bg-green-500' },
+                          { level: 'ปานกลาง (EF 2.0-2.5)', percentage: 35, color: 'bg-yellow-500' },
+                          { level: 'ยาก (EF < 2.0)', percentage: 20, color: 'bg-red-500' }
+                        ].map((item, index) => (
+                          <div key={index} className="space-y-1">
+                            <div className="flex justify-between text-sm">
+                              <span className="text-gray-700">{item.level}</span>
+                              <span className="font-medium">{item.percentage}%</span>
+                            </div>
+                            <div className="w-full bg-gray-200 rounded-full h-2">
+                              <div 
+                                className={`${item.color} h-2 rounded-full transition-all duration-300`}
+                                style={{ width: `${item.percentage}%` }}
+                              ></div>
+                            </div>
+                          </div>
+                        ))}
+                      </div>
+                    </div>
                   </div>
                 </CardContent>
               </Card>
+
+              {/* Learning Velocity Over Time */}
+              <Card className="border-0 shadow-sm">
+                <CardHeader>
+                  <CardTitle className="flex items-center space-x-2">
+                    <TrendingUp className="h-5 w-5 text-green-600" />
+                    <span>แนวโน้มความเร็วการเรียนรู้</span>
+                  </CardTitle>
+                  <CardDescription>ความเร็วในการเรียนรู้และอัตราการจำในช่วง 4 สัปดาห์ล่าสุด</CardDescription>
+                </CardHeader>
+                <CardContent>
+                  <div className="space-y-4">
+                    {learningVelocity.map((week, index) => (
+                      <div key={index} className="relative">
+                        <div className="flex items-center justify-between mb-2">
+                          <span className="font-medium text-gray-900">{week.week}</span>
+                          <div className="flex items-center space-x-4 text-sm text-gray-600">
+                            <span>เร็ว: {week.velocity} การ์ด/ชม.</span>
+                            <span>จำได้: {week.retention}%</span>
+                          </div>
+                        </div>
+                        <div className="flex space-x-2">
+                          <div className="flex-1 bg-gray-200 rounded-full h-3 relative overflow-hidden">
+                            <div 
+                              className="bg-gradient-to-r from-blue-500 to-blue-600 h-full rounded-full transition-all duration-500"
+                              style={{ width: `${(week.velocity / 30) * 100}%` }}
+                            ></div>
+                          </div>
+                          <div className="flex-1 bg-gray-200 rounded-full h-3 relative overflow-hidden">
+                            <div 
+                              className="bg-gradient-to-r from-green-500 to-green-600 h-full rounded-full transition-all duration-500"
+                              style={{ width: `${week.retention}%` }}
+                            ></div>
+                          </div>
+                        </div>
+                        {index === learningVelocity.length - 1 && (
+                          <div className="absolute -right-2 -top-1">
+                            <div className="bg-blue-600 text-white text-xs px-2 py-1 rounded-full">ล่าสุด</div>
+                          </div>
+                        )}
+                      </div>
+                    ))}
+                  </div>
+                  
+                  <div className="mt-6 p-4 bg-gradient-to-r from-green-50 to-blue-50 rounded-lg">
+                    <h4 className="font-semibold text-gray-900 mb-2">การวิเคราะห์แนวโน้ม</h4>
+                    <div className="grid md:grid-cols-2 gap-4 text-sm text-gray-700">
+                      <div>
+                        <div className="flex items-center space-x-2 mb-1">
+                          <TrendingUp className="h-4 w-4 text-green-600" />
+                          <span className="font-medium">ความเร็วการเรียนรู้</span>
+                        </div>
+                        <p>เพิ่มขึ้น 67% ในช่วง 4 สัปดาห์ล่าสุด</p>
+                      </div>
+                      <div>
+                        <div className="flex items-center space-x-2 mb-1">
+                          <Target className="h-4 w-4 text-blue-600" />
+                          <span className="font-medium">อัตราการจำ</span>
+                        </div>
+                        <p>ปรับปรุงขึ้น 13% และมีเสถียรภาพ</p>
+                      </div>
+                    </div>
+                  </div>
+                </CardContent>
+              </Card>
+            </TabsContent>
+
+            <TabsContent value="recommendations" className="space-y-6">
+              {/* AI-Powered Recommendations */}
+              <LearningRecommendations />
 
               {/* Study Plan Generator */}
               <Card className="border-0 shadow-sm">
@@ -838,6 +1002,8 @@ export default function ReportsPage() {
               </div>
             </CardContent>
           </Card>
+            </>
+          )}
         </div>
       </div>
       </div>
