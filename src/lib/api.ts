@@ -162,7 +162,7 @@ class ApiService {
 
   // Document endpoints
   async uploadDocument(file: File): Promise<ApiResponse<{document_id: string}>> {
-    return this.uploadFile('/documents/upload', file);
+    return this.uploadFile('/documents/upload', file) as unknown as Promise<ApiResponse<{document_id: string}>>;
   }
 
   async listDocuments(): Promise<ApiResponse<Document[]>> {

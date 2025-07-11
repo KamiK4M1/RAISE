@@ -24,7 +24,7 @@ export function createErrorResponse(error: unknown): NextResponse {
   if (error instanceof ApiException) {
     return NextResponse.json(
       {
-        error: error instanceof Error ? error.message : String(error).message,
+        error: error instanceof Error ? error.message : String(error),
         code: error.code,
       },
       { status: error.statusCode }
