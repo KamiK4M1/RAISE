@@ -40,7 +40,7 @@ export function useApi<T>(apiCall: () => Promise<T>): UseApiReturn<T> {
   return { ...state, execute, reset };
 }
 
-export function useAsyncApi<T, P extends any[]>(
+export function useAsyncApi<T, P extends unknown[]>(
   apiCall: (...args: P) => Promise<T>
 ) {
   const [state, setState] = useState<UseApiState<T>>({

@@ -1,15 +1,15 @@
 "use client"
 
-import { useEffect, useState } from "react"
-import { useParams, useRouter } from "next/navigation"
+import { useEffect, useState, useCallback } from "react"
+import { useParams } from "next/navigation"
 import { Button } from "@/components/ui/button"
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card"
 import { Badge } from "@/components/ui/badge"
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs"
-import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert"
-import { Flashcard } from "@/types/api"
+// import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert"
+// import { Flashcard } from "@/types/api"
 import { apiService } from "@/lib/api"
-import { Loader2, AlertCircle, ArrowLeft, RefreshCw, Lightbulb, Check, Brain, Play, Eye, Calendar, BookOpen, Clock } from "lucide-react"
+import {  AlertCircle, ArrowLeft, RefreshCw, Check, Brain, Play, Eye, Calendar, BookOpen, Clock } from "lucide-react"
 import Link from "next/link"
 import { AuthWrapper } from "@/components/providers/auth-wrpper"
 
@@ -30,24 +30,17 @@ interface FlashcardData {
 
 export default function FlashcardPage() {
   const params = useParams()
-  const router = useRouter()
   const id = params.id as string
 
   const [flashcards, setFlashcards] = useState<FlashcardData[]>([])
-  const [documentInfo, setDocumentInfo] = useState<any>(null)
+  const [documentInfo, setDocumentInfo] = useState<Record<string, unknown> | null>(null)
   const [currentCardIndex, setCurrentCardIndex] = useState(0)
   const [isFlipped, setIsFlipped] = useState(false)
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState<string | null>(null)
   const [activeTab, setActiveTab] = useState("study")
 
-  useEffect(() => {
-    if (id) {
-      loadFlashcardData()
-    }
-  }, [id])
-
-  const loadFlashcardData = async () => {
+  const loadFlashcardData = useCallback(async () => {
     try {
       setLoading(true)
       setError(null)
@@ -62,11 +55,11 @@ export default function FlashcardPage() {
       ])
 
       if (flashcardsResponse.success && flashcardsResponse.data) {
-        const flashcards = flashcardsResponse.data.flashcards || []
+        const flashcards = (flashcardsResponse.data as { flashcards?: FlashcardData[] }).flashcards || []
         setFlashcards(flashcards)
         
-        if (docResponse.success && docResponse.data) {
-          setDocumentInfo(docResponse.data)
+        if (docResponse.success && 'data' in docResponse && docResponse.data) {
+          setDocumentInfo(docResponse.data as unknown as Record<string, unknown>)
         } else {
           // Handle topic-based flashcards
           const isTopicBased = id.startsWith('topic_')
@@ -81,12 +74,18 @@ export default function FlashcardPage() {
       } else {
         setError("ไม่พบแฟลชการ์ดสำหรับเอกสาร/หัวข้อนี้")
       }
-    } catch (err: any) {
-      setError(err.message || "เกิดข้อผิดพลาดในการโหลดข้อมูล")
+    } catch (err: unknown) {
+      setError(err instanceof Error ? err.message : "เกิดข้อผิดพลาดในการโหลดข้อมูล")
     } finally {
       setLoading(false)
     }
-  }
+  }, [id])
+
+  useEffect(() => {
+    if (id) {
+      loadFlashcardData()
+    }
+  }, [id, loadFlashcardData])
 
   const startStudySession = () => {
     if (flashcards.length === 0) {
@@ -198,9 +197,9 @@ export default function FlashcardPage() {
               <Brain className="h-8 w-8 text-blue-600" />
               <div>
                 <h1 className="text-xl font-bold text-gray-900">
-                  {documentInfo?.source_name || documentInfo?.filename || 'แฟลชการ์ด'}
+                  {String(documentInfo?.source_name) || String(documentInfo?.filename) || 'แฟลชการ์ด'}
                 </h1>
-                {documentInfo?.is_topic_based && (
+                {Boolean(documentInfo?.is_topic_based) && (
                   <p className="text-sm text-gray-600">หัวข้อการเรียนรู้</p>
                 )}
               </div>

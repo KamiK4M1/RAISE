@@ -1,13 +1,12 @@
 "use client"
 
-import { useState, useEffect } from "react"
+import { useState, useEffect, useCallback } from "react"
 import { Button } from "@/components/ui/button"
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card"
 import { Progress } from "@/components/ui/progress"
 import { RadioGroup, RadioGroupItem } from "@/components/ui/radio-group"
 import { Label } from "@/components/ui/label"
 import { Badge } from "@/components/ui/badge"
-import { Separator } from "@/components/ui/separator"
 import { 
   Brain, 
   ArrowLeft, 
@@ -22,8 +21,9 @@ import {
   Star,
   TrendingUp
 } from "lucide-react"
-import Link from "next/link"
+
 import { apiService } from "@/lib/api"
+import { QuizOptions } from "@/types/api"
 
 // Types
 interface QuizQuestion {
@@ -140,9 +140,52 @@ export function BloomsQuizInterface({ documentId, onBack }: BloomsQuizInterfaceP
   const [error, setError] = useState<string | null>(null)
   const [startTime, setStartTime] = useState(Date.now())
 
+  const handleSubmitQuiz = useCallback(async () => {
+    if (!quiz) return
+    
+    try {
+      setSubmitting(true)
+      const timeTaken = Math.floor((Date.now() - startTime) / 1000)
+      
+      const response = await apiService.submitQuiz(quiz.quiz_id, {
+        answers,
+        time_taken: timeTaken
+      })
+      
+      if (response.success && response.data) {
+        const results = response.data as unknown as QuizResults
+        setQuizResults({
+          ...results,
+          attempt_id: results.attempt_id || '',
+          bloom_scores: results.bloom_scores || {},
+          recommendations: results.recommendations || [],
+          question_results: (results.question_results || []).map(qr => ({
+            question_id: qr.question_id || '',
+            question: qr.question || '',
+            user_answer: qr.user_answer || '',
+            correct_answer: qr.correct_answer || '',
+            is_correct: qr.is_correct || false,
+            points_earned: qr.points_earned || 0,
+            points_possible: qr.points_possible || 0,
+            bloom_level: qr.bloom_level || '',
+            explanation: qr.explanation || ''
+          }))
+        })
+        setShowResults(true)
+      } else {
+        throw new Error(response.message || 'Failed to submit quiz')
+      }
+    } catch (error) {
+      console.error('Error submitting quiz:', error)
+      setError(error instanceof Error ? error.message : 'ไม่สามารถส่งคำตอบได้')
+    } finally {
+      setSubmitting(false)
+    }
+  }, [quiz, startTime, answers])
+
   // Generate quiz with Bloom's Taxonomy distribution
   useEffect(() => {
-    let abortController = new AbortController()
+    const abortController = new AbortController()
     
     const loadQuiz = async () => {
       if (abortController.signal.aborted) return
@@ -162,14 +205,16 @@ export function BloomsQuizInterface({ documentId, onBack }: BloomsQuizInterfaceP
             create: 2
           },
           difficulty: "medium",
-          time_limit: 1200, // 20 minutes
-          include_explanations: true
-        })
+          time_limit: 1200 // 20 minutes
+        } as QuizOptions)
         
         if (abortController.signal.aborted) return
         
         if (response.success && response.data) {
-          setQuiz(response.data)
+          setQuiz({
+            ...response.data,
+            description: response.data.description || ''
+          })
           setTimeLeft(response.data.time_limit || 1200)
           setStartTime(Date.now())
           setAnswers(new Array(response.data.questions.length).fill(""))
@@ -204,7 +249,7 @@ export function BloomsQuizInterface({ documentId, onBack }: BloomsQuizInterfaceP
     } else if (timeLeft === 0 && quiz && !showResults) {
       handleSubmitQuiz()
     }
-  }, [timeLeft, showResults, loading, quiz])
+  }, [timeLeft, showResults, loading, quiz, handleSubmitQuiz])
 
   const handleAnswerSelect = (value: string) => {
     setSelectedAnswer(value)
@@ -229,32 +274,6 @@ export function BloomsQuizInterface({ documentId, onBack }: BloomsQuizInterfaceP
     }
   }
 
-  const handleSubmitQuiz = async () => {
-    if (!quiz) return
-    
-    try {
-      setSubmitting(true)
-      const timeTaken = Math.floor((Date.now() - startTime) / 1000)
-      
-      const response = await apiService.submitQuiz(quiz.quiz_id, {
-        answers,
-        time_taken: timeTaken
-      })
-      
-      if (response.success && response.data) {
-        setQuizResults(response.data)
-        setShowResults(true)
-      } else {
-        throw new Error(response.message || 'Failed to submit quiz')
-      }
-    } catch (error) {
-      console.error('Error submitting quiz:', error)
-      setError(error instanceof Error ? error.message : 'ไม่สามารถส่งคำตอบได้')
-    } finally {
-      setSubmitting(false)
-    }
-  }
-
   const formatTime = (seconds: number) => {
     const mins = Math.floor(seconds / 60)
     const secs = seconds % 60
@@ -270,7 +289,7 @@ export function BloomsQuizInterface({ documentId, onBack }: BloomsQuizInterfaceP
       <div className="min-h-screen bg-gray-50 flex items-center justify-center">
         <div className="text-center">
           <Brain className="h-12 w-12 text-blue-600 mx-auto mb-4 animate-spin" />
-          <p className="text-gray-600">กำลังสร้างแบบทดสอบตาม Bloom's Taxonomy...</p>
+          <p className="text-gray-600">กำลังสร้างแบบทดสอบตาม Bloom&apos;s Taxonomy...</p>
         </div>
       </div>
     )
@@ -368,7 +387,7 @@ export function BloomsQuizInterface({ documentId, onBack }: BloomsQuizInterfaceP
                 <div className="mb-8">
                   <h3 className="text-xl font-bold mb-4 flex items-center">
                     <TrendingUp className="h-5 w-5 mr-2" />
-                    ผลงานตาม Bloom's Taxonomy
+                    ผลงานตาม Bloom&apos;s Taxonomy
                   </h3>
                   <div className="grid md:grid-cols-2 lg:grid-cols-3 gap-4">
                     {Object.entries(quizResults.bloom_scores).map(([level, score]) => {
@@ -530,7 +549,7 @@ export function BloomsQuizInterface({ documentId, onBack }: BloomsQuizInterfaceP
           {/* Header */}
           <div className="mb-8">
             <h1 className="text-3xl font-bold text-gray-900 mb-2">{quiz.title}</h1>
-            <p className="text-gray-600">แบบทดสอบที่ครอบคลุมทุกระดับตาม Bloom's Taxonomy</p>
+            <p className="text-gray-600">แบบทดสอบที่ครอบคลุมทุกระดับตาม Bloom&apos;s Taxonomy</p>
           </div>
 
           {/* Progress */}

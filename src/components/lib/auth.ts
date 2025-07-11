@@ -1,11 +1,11 @@
 import type { NextAuthOptions } from "next-auth"
 import CredentialsProvider from "next-auth/providers/credentials"
 import GoogleProvider from "next-auth/providers/google"
-import { MongoDBAdapter } from "@auth/mongodb-adapter"
-import { PrismaAdapter } from "@auth/prisma-adapter"
-import { MongoClient } from "mongodb"
-import prisma from "@/lib/prisma" 
-import bcrypt from "bcryptjs"
+// import { MongoDBAdapter } from "@auth/mongodb-adapter"
+// import { PrismaAdapter } from "@auth/prisma-adapter"
+// import { MongoClient } from "mongodb"
+// import prisma from "@/lib/prisma" 
+// import bcrypt from "bcryptjs"
 
 // Extend NextAuth types to include id in session
 declare module "next-auth" {
@@ -31,8 +31,8 @@ declare module "next-auth/jwt" {
   }
 }
 
-const client = new MongoClient(process.env.MONGODB_URI!)
-const clientPromise = client.connect()
+// const client = new MongoClient(process.env.MONGODB_URI!)
+// const clientPromise = client.connect()
 
 export const authOptions: NextAuthOptions = {
   // Use MongoDB adapter (commented out Prisma)
@@ -103,8 +103,8 @@ export const authOptions: NextAuthOptions = {
     async jwt({ token, user }) {
       if (user) {
         token.id = user.id
-        if ((user as any).accessToken) {
-          token.accessToken = (user as any).accessToken
+        if ((user as unknown as Record<string, unknown>).accessToken) {
+          token.accessToken = (user as unknown as Record<string, unknown>).accessToken as string
         }
       }
       return token

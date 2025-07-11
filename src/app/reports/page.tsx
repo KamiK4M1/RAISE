@@ -6,11 +6,11 @@ import { Button } from "@/components/ui/button"
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card"
 import { Progress } from "@/components/ui/progress"
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs"
-import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
-import { Brain, ArrowLeft, TrendingUp, Target, Clock, Award, BookOpen, Zap, MessageSquare, BarChart3, PieChart, LineChart, Activity, Lightbulb, AlertCircle, Star, ChevronRight } from "lucide-react"
+// import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
+import { Brain, ArrowLeft, TrendingUp, Target, Clock, Award, BookOpen, Zap, MessageSquare, BarChart3, PieChart, Activity, AlertCircle, Star } from "lucide-react"
 import Link from "next/link"
 import { apiService } from "@/lib/api"
-import { UserAnalytics } from "@/types/api"
+// import { UserAnalytics } from "@/types/api"
 import { AuthWrapper } from "@/components/providers/auth-wrpper"
 import { ForgettingCurveChart } from "@/components/analytics/ForgettingCurveChart"
 import { LearningRecommendations } from "@/components/analytics/LearningRecommendations"
@@ -28,15 +28,15 @@ export default function ReportsPage() {
     improvementRate: 0,
   })
   const [weeklyProgress, setWeeklyProgress] = useState<Array<{day: string, studyTime: number, score: number}>>([])
-  const [subjectPerformance, setSubjectPerformance] = useState<Array<{subject: string, score: number, improvement: string, color: string}>>([])
+  // const [subjectPerformance, setSubjectPerformance] = useState<Array<{subject: string, score: number, improvement: string, color: string}>>([])
   const [bloomTaxonomy, setBloomTaxonomy] = useState<Array<{level: string, score: number, questions: number}>>([])
-  const [recommendations, setRecommendations] = useState<Array<{type: string, title: string, description: string, priority: string}>>([])
+  const [, setRecommendations] = useState<Array<{type: string, title: string, description: string, priority: string}>>([])
   const [performanceAnalysis, setPerformanceAnalysis] = useState<{strengths: string[], weaknesses: string[], trends: Array<{metric: string, trend: string, change: number}>}>({strengths: [], weaknesses: [], trends: []})
   const [learningVelocity, setLearningVelocity] = useState<Array<{week: string, velocity: number, retention: number}>>([])
   const [studyPatterns, setStudyPatterns] = useState<{pattern: string, consistency: number, optimalTimes: string[], sessionLength: number}>({ pattern: '', consistency: 0, optimalTimes: [], sessionLength: 0 })
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState<string | null>(null)
-  const { data: session, status } = useSession()
+  const { status } = useSession()
   
   useEffect(() => {
     // Don't try to load data if session is still loading or user is not authenticated
@@ -50,7 +50,7 @@ export default function ReportsPage() {
     const loadReportsData = async () => {
       try {
         setError(null)
-        const days = timeRange === "week" ? 7 : 30
+        // const days = timeRange === "week" ? 7 : 30
         const response = await apiService.getUserAnalytics()
         
         if (response.success && response.data) {
@@ -74,8 +74,8 @@ export default function ReportsPage() {
           
           // Set performance analysis
           setPerformanceAnalysis({
-            strengths: (data.flashcard_stats as any).strong_subjects || ['คณิตศาสตร์', 'ฟิสิกส์'],
-            weaknesses: (data.flashcard_stats as any).weak_subjects || ['เคมี', 'ชีววิทยา'],
+            strengths: (data.flashcard_stats as Record<string, unknown>).strong_subjects as string[] || ['คณิตศาสตร์', 'ฟิสิกส์'],
+            weaknesses: (data.flashcard_stats as Record<string, unknown>).weak_subjects as string[] || ['เคมี', 'ชีววิทยา'],
             trends: [
               { metric: 'คะแนนเฉลี่ย', trend: 'เพิ่มขึ้น', change: data.quiz_stats.improvement_rate || 12 },
               { metric: 'ความเร็วในการเรียน', trend: 'เพิ่มขึ้น', change: 8 },
@@ -93,9 +93,9 @@ export default function ReportsPage() {
           
           // Set study patterns
           setStudyPatterns({
-            pattern: (data.study_patterns as any).pattern || 'consistent',
+            pattern: (data.study_patterns as Record<string, unknown>).pattern as string || 'consistent',
             consistency: data.study_patterns.consistency_score || 85,
-            optimalTimes: (data.study_patterns as any).optimal_times || ['เช้า', 'เย็น'],
+            optimalTimes: (data.study_patterns as Record<string, unknown>).optimal_times as string[] || ['เช้า', 'เย็น'],
             sessionLength: data.study_patterns.average_session_length || 45
           })
           
@@ -529,7 +529,7 @@ export default function ReportsPage() {
             <TabsContent value="skills" className="space-y-6">
               <Card className="border-0 shadow-sm">
                 <CardHeader>
-                  <CardTitle>ทักษะการคิดตาม Bloom's Taxonomy</CardTitle>
+                  <CardTitle>ทักษะการคิดตาม Bloom&apos;s Taxonomy</CardTitle>
                   <CardDescription>ประเมินความสามารถในแต่ละระดับการคิด</CardDescription>
                 </CardHeader>
                 <CardContent>
@@ -839,7 +839,7 @@ export default function ReportsPage() {
                           <span>จันทร์-พุธ (30 นาที/วัน)</span>
                         </div>
                         <div className="flex justify-between">
-                          <span>• แบบทดสอบ Bloom's ระดับสูง</span>
+                          <span>• แบบทดสอบ Bloom&apos;s ระดับสูง</span>
                           <span>พฤหัสบดี-ศุกร์ (45 นาที/วัน)</span>
                         </div>
                         <div className="flex justify-between">
@@ -987,7 +987,7 @@ export default function ReportsPage() {
                   <div className="space-y-2 text-sm text-blue-800">
                     <div className="flex items-center space-x-2">
                       <div className="w-2 h-2 bg-yellow-500 rounded-full"></div>
-                      <span>เพิ่มทักษะการคิดระดับ "สร้างสรรค์"</span>
+                      <span>เพิ่มทักษะการคิดระดับ &quot;สร้างสรรค์&quot;</span>
                     </div>
                     <div className="flex items-center space-x-2">
                       <div className="w-2 h-2 bg-red-500 rounded-full"></div>

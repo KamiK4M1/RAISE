@@ -12,7 +12,6 @@ import { AuthWrapper } from "@/components/providers/auth-wrpper"
 export default function FlashcardQuizPage() {
   const {
     // State
-    loading,
     generatingQuiz,
     error,
     flashcards,
@@ -89,7 +88,7 @@ export default function FlashcardQuizPage() {
             flashcards={flashcards}
             onComplete={completeQuiz}
             onExit={exitQuiz}
-            timeLimit={quizOptions?.time_limit}
+            timeLimit={typeof quizOptions?.time_limit === 'number' ? quizOptions.time_limit : undefined}
             title="Flashcard Quiz"
           />
         </AuthWrapper>

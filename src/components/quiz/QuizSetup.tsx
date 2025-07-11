@@ -11,7 +11,7 @@ import { apiService } from "@/lib/api"
 import { Document } from "@/types/api"
 
 interface QuizSetupProps {
-  onStartQuiz: (deckId: string, questionCount: number, options: any) => void
+  onStartQuiz: (deckId: string, questionCount: number, options: Record<string, unknown>) => void
   loading?: boolean
 }
 

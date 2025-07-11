@@ -1,6 +1,5 @@
 import {
   ApiResponse,
-  ApiError,
   Document,
   Flashcard,
   FlashcardSession,
@@ -10,8 +9,6 @@ import {
   QuizOptions,
   QuizResults,
   ChatResponse,
-  ChatMessage,
-  ChatSession,
   UserAnalytics
 } from '@/types/api';
 
@@ -89,7 +86,7 @@ class ApiService {
     }
   }
 
-  private async uploadFile(endpoint: string, file: File): Promise<any> {
+  private async uploadFile(endpoint: string, file: File): Promise<Record<string, unknown>> {
     const formData = new FormData();
     formData.append('file', file);
 
@@ -124,8 +121,8 @@ class ApiService {
   }
 
   // Authentication endpoints
-  async login(email: string, password: string): Promise<ApiResponse<{access_token: string, user: any}>> {
-    const response = await this.request<ApiResponse<{access_token: string, user: any}>>('/auth/login', {
+  async login(email: string, password: string): Promise<ApiResponse<{access_token: string, user: Record<string, unknown>}>> {
+    const response = await this.request<ApiResponse<{access_token: string, user: Record<string, unknown>}>>('/auth/login', {
       method: 'POST',
       body: JSON.stringify({ email, password }),
     });
@@ -138,8 +135,8 @@ class ApiService {
     return response;
   }
 
-  async register(email: string, password: string, name: string): Promise<ApiResponse<{access_token: string, user: any}>> {
-    const response = await this.request<ApiResponse<{access_token: string, user: any}>>('/auth/register', {
+  async register(email: string, password: string, name: string): Promise<ApiResponse<{access_token: string, user: Record<string, unknown>}>> {
+    const response = await this.request<ApiResponse<{access_token: string, user: Record<string, unknown>}>>('/auth/register', {
       method: 'POST',
       body: JSON.stringify({ email, password, name }),
     });
@@ -159,7 +156,7 @@ class ApiService {
     }
   }
 
-  async getCurrentUser(): Promise<ApiResponse<any>> {
+  async getCurrentUser(): Promise<ApiResponse<Record<string, unknown>>> {
     return this.request('/auth/me');
   }
 
@@ -186,17 +183,17 @@ class ApiService {
     });
   }
 
-  async reprocessDocument(docId: string): Promise<ApiResponse<any>> {
+  async reprocessDocument(docId: string): Promise<ApiResponse<Record<string, unknown>>> {
     return this.request(`/documents/${docId}/process`, {
       method: 'POST',
     });
   }
 
-  async getDocumentStats(docId: string): Promise<ApiResponse<any>> {
+  async getDocumentStats(docId: string): Promise<ApiResponse<Record<string, unknown>>> {
     return this.request(`/documents/${docId}/stats`);
   }
 
-  async searchDocument(docId: string, query: string): Promise<ApiResponse<any>> {
+  async searchDocument(docId: string, query: string): Promise<ApiResponse<Record<string, unknown>>> {
     return this.request(`/documents/${docId}/search`, {
       method: 'POST',
       body: JSON.stringify({ query }),
@@ -227,50 +224,50 @@ class ApiService {
     return this.request(`/flashcards/session/${docId}${params}`);
   }
 
-  async submitFlashcardAnswer(answer: FlashcardAnswer): Promise<ApiResponse<any>> {
+  async submitFlashcardAnswer(answer: FlashcardAnswer): Promise<ApiResponse<Record<string, unknown>>> {
     return this.request('/flashcards/answer', {
       method: 'POST',
       body: JSON.stringify(answer),
     });
   }
 
-  async getReviewSchedule(docId: string): Promise<ApiResponse<any>> {
+  async getReviewSchedule(docId: string): Promise<ApiResponse<Record<string, unknown>>> {
     return this.request(`/flashcards/review-schedule/${docId}`);
   }
 
-  async getFlashcardStats(docId: string): Promise<ApiResponse<any>> {
+  async getFlashcardStats(docId: string): Promise<ApiResponse<Record<string, unknown>>> {
     return this.request(`/flashcards/stats/${docId}`);
   }
 
-  async resetFlashcard(cardId: string): Promise<ApiResponse<any>> {
+  async resetFlashcard(cardId: string): Promise<ApiResponse<Record<string, unknown>>> {
     return this.request(`/flashcards/${cardId}/reset`, {
       method: 'POST',
     });
   }
 
-  async deleteFlashcard(cardId: string): Promise<ApiResponse<any>> {
+  async deleteFlashcard(cardId: string): Promise<ApiResponse<Record<string, unknown>>> {
     return this.request(`/flashcards/${cardId}`, {
       method: 'DELETE',
     });
   }
 
-  async getAllUserFlashcards(skip: number = 0, limit: number = 50): Promise<ApiResponse<any>> {
+  async getAllUserFlashcards(skip: number = 0, limit: number = 50): Promise<ApiResponse<Record<string, unknown>>> {
     return this.request(`/flashcards/all?skip=${skip}&limit=${limit}`);
   }
 
-  async getFlashcardsByDocument(docId: string, skip: number = 0, limit: number = 50): Promise<ApiResponse<any>> {
+  async getFlashcardsByDocument(docId: string, skip: number = 0, limit: number = 50): Promise<ApiResponse<Record<string, unknown>>> {
     return this.request(`/flashcards/by-document/${docId}?skip=${skip}&limit=${limit}`);
   }
 
-  async getDueFlashcards(limit: number = 20): Promise<ApiResponse<any>> {
+  async getDueFlashcards(limit: number = 20): Promise<ApiResponse<Record<string, unknown>>> {
     return this.request(`/flashcards/due?limit=${limit}`);
   }
 
-  async getFlashcardTopics(): Promise<ApiResponse<any>> {
+  async getFlashcardTopics(): Promise<ApiResponse<Record<string, unknown>>> {
     return this.request('/flashcards/topics');
   }
 
-  async submitBatchAnswers(answers: FlashcardAnswer[]): Promise<ApiResponse<any>> {
+  async submitBatchAnswers(answers: FlashcardAnswer[]): Promise<ApiResponse<Record<string, unknown>>> {
     return this.request('/flashcards/batch-answer', {
       method: 'POST',
       body: JSON.stringify({ answers }),
@@ -289,7 +286,7 @@ class ApiService {
     return this.request(`/quiz/${quizId}`);
   }
 
-  async deleteQuiz(quizId: string): Promise<ApiResponse<any>> {
+  async deleteQuiz(quizId: string): Promise<ApiResponse<Record<string, unknown>>> {
     return this.request(`/quiz/${quizId}`, {
       method: 'DELETE',
     });
@@ -306,23 +303,23 @@ class ApiService {
     return this.request(`/quiz/${quizId}/results/${attemptId}`);
   }
 
-  async getQuizHistory(docId: string): Promise<ApiResponse<any>> {
+  async getQuizHistory(docId: string): Promise<ApiResponse<Record<string, unknown>>> {
     return this.request(`/quiz/history/${docId}`);
   }
 
-  async getUserQuizHistory(): Promise<ApiResponse<any>> {
+  async getUserQuizHistory(): Promise<ApiResponse<Record<string, unknown>>> {
     return this.request('/quiz/user/history');
   }
 
-  async getQuizAnalytics(quizId: string): Promise<ApiResponse<any>> {
+  async getQuizAnalytics(quizId: string): Promise<ApiResponse<Record<string, unknown>>> {
     return this.request(`/quiz/${quizId}/analytics`);
   }
 
-  async getQuestionsByDifficulty(quizId: string, level: string): Promise<ApiResponse<any>> {
+  async getQuestionsByDifficulty(quizId: string, level: string): Promise<ApiResponse<Record<string, unknown>>> {
     return this.request(`/quiz/${quizId}/difficulty/${level}`);
   }
 
-  async getQuestionsByBloomLevel(quizId: string, level: string): Promise<ApiResponse<any>> {
+  async getQuestionsByBloomLevel(quizId: string, level: string): Promise<ApiResponse<Record<string, unknown>>> {
     return this.request(`/quiz/${quizId}/bloom/${level}`);
   }
 
@@ -339,14 +336,14 @@ class ApiService {
     });
   }
 
-  async searchDocuments(query: string, docIds?: string[]): Promise<ApiResponse<any>> {
+  async searchDocuments(query: string, docIds?: string[]): Promise<ApiResponse<Record<string, unknown>>> {
     return this.request('/chat/search', {
       method: 'POST',
       body: JSON.stringify({ query, document_ids: docIds }),
     });
   }
 
-  async askQuestionStream(question: string, sessionId?: string, documentId?: string): Promise<ApiResponse<any>> {
+  async askQuestionStream(question: string, sessionId?: string, documentId?: string): Promise<ApiResponse<Record<string, unknown>>> {
     return this.request('/chat/ask-stream', {
       method: 'POST',
       body: JSON.stringify({ 
@@ -358,24 +355,24 @@ class ApiService {
     });
   }
 
-  async getSimilarQuestions(question: string, documentId?: string): Promise<ApiResponse<any>> {
+  async getSimilarQuestions(question: string, documentId?: string): Promise<ApiResponse<Record<string, unknown>>> {
     const params = new URLSearchParams({ query: question });
     if (documentId) params.append('document_id', documentId);
     return this.request(`/chat/similar-questions?${params.toString()}`);
   }
 
-  async createChatSession(documentId: string): Promise<ApiResponse<any>> {
+  async createChatSession(documentId: string): Promise<ApiResponse<Record<string, unknown>>> {
     return this.request('/chat/sessions', {
       method: 'POST',
       body: JSON.stringify({ document_id: documentId }),
     });
   }
 
-  async getChatSessions(): Promise<ApiResponse<any>> {
+  async getChatSessions(): Promise<ApiResponse<Record<string, unknown>>> {
     return this.request('/chat/sessions');
   }
 
-  async getChatHistory(sessionId?: string, documentId?: string, limit?: number): Promise<ApiResponse<any>> {
+  async getChatHistory(sessionId?: string, documentId?: string, limit?: number): Promise<ApiResponse<Record<string, unknown>>> {
     return this.request('/chat/history', {
       method: 'POST',
       body: JSON.stringify({ 
@@ -386,11 +383,11 @@ class ApiService {
     });
   }
 
-  async getChatStatistics(): Promise<ApiResponse<any>> {
+  async getChatStatistics(): Promise<ApiResponse<Record<string, unknown>>> {
     return this.request('/chat/stats');
   }
 
-  async getChatHealthCheck(): Promise<ApiResponse<any>> {
+  async getChatHealthCheck(): Promise<ApiResponse<Record<string, unknown>>> {
     return this.request('/chat/health');
   }
 
@@ -399,44 +396,44 @@ class ApiService {
     return this.request('/analytics/user');
   }
 
-  async getDocumentAnalytics(docId: string): Promise<ApiResponse<any>> {
+  async getDocumentAnalytics(docId: string): Promise<ApiResponse<Record<string, unknown>>> {
     return this.request(`/analytics/document/${docId}`);
   }
 
-  async getLearningProgress(): Promise<ApiResponse<any>> {
+  async getLearningProgress(): Promise<ApiResponse<Record<string, unknown>>> {
     return this.request('/analytics/progress');
   }
 
-  async getStudyRecommendations(): Promise<ApiResponse<any>> {
+  async getStudyRecommendations(): Promise<ApiResponse<Record<string, unknown>>> {
     return this.request('/analytics/recommendations');
   }
 
-  async getSystemAnalytics(): Promise<ApiResponse<any>> {
+  async getSystemAnalytics(): Promise<ApiResponse<Record<string, unknown>>> {
     return this.request('/analytics/system');
   }
 
-  async trackLearningSession(session: any): Promise<ApiResponse<any>> {
+  async trackLearningSession(session: Record<string, unknown>): Promise<ApiResponse<Record<string, unknown>>> {
     return this.request('/analytics/track-session', {
       method: 'POST',
       body: JSON.stringify(session),
     });
   }
 
-  async getRecentActivity(limit?: number): Promise<ApiResponse<any>> {
+  async getRecentActivity(limit?: number): Promise<ApiResponse<Record<string, unknown>>> {
     const params = limit ? `?limit=${limit}` : '';
     return this.request(`/analytics/recent-activity${params}`);
   }
 
-  async getForgettingCurve(daysBack?: number): Promise<ApiResponse<any>> {
+  async getForgettingCurve(daysBack?: number): Promise<ApiResponse<Record<string, unknown>>> {
     const params = daysBack ? `?days_back=${daysBack}` : '';
     return this.request(`/analytics/forgetting-curve${params}`);
   }
 
-  async getLearningRecommendations(): Promise<ApiResponse<any>> {
+  async getLearningRecommendations(): Promise<ApiResponse<Record<string, unknown>>> {
     return this.request('/analytics/learning-recommendations');
   }
 
-  async getLearningStatistics(daysBack?: number): Promise<ApiResponse<any>> {
+  async getLearningStatistics(daysBack?: number): Promise<ApiResponse<Record<string, unknown>>> {
     const params = daysBack ? `?days_back=${daysBack}` : '';
     return this.request(`/analytics/learning-statistics${params}`);
   }
@@ -445,7 +442,7 @@ class ApiService {
     targetDailyReviews?: number,
     maxNewCards?: number,
     availableTimeMinutes?: number
-  ): Promise<ApiResponse<any>> {
+  ): Promise<ApiResponse<Record<string, unknown>>> {
     const params = new URLSearchParams();
     if (targetDailyReviews) params.append('target_daily_reviews', targetDailyReviews.toString());
     if (maxNewCards) params.append('max_new_cards', maxNewCards.toString());
@@ -455,15 +452,15 @@ class ApiService {
     return this.request(`/analytics/study-schedule${queryString}`);
   }
   // Default endpoints
-  async getRoot(): Promise<ApiResponse<any>> {
+  async getRoot(): Promise<ApiResponse<Record<string, unknown>>> {
     return this.request('/');
   }
 
-  async getHealth(): Promise<ApiResponse<any>> {
+  async getHealth(): Promise<ApiResponse<Record<string, unknown>>> {
     return this.request('/health');
   }
 
-  async getApiInfo(): Promise<ApiResponse<any>> {
+  async getApiInfo(): Promise<ApiResponse<Record<string, unknown>>> {
     return this.request('/api/info');
   }
 }

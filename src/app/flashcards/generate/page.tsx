@@ -46,7 +46,7 @@ export default function GenerateFlashcardsPage() {
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState<string | null>(null)
   const [showSuccessDialog, setShowSuccessDialog] = useState(false)
-  const [generatedFlashcards, setGeneratedFlashcards] = useState<any>(null)
+  const [generatedFlashcards, setGeneratedFlashcards] = useState<Record<string, unknown> | null>(null)
 
   // Flashcard options
   const [flashcardCount, setFlashcardCount] = useState(10)
@@ -109,8 +109,8 @@ export default function GenerateFlashcardsPage() {
       } else {
         throw new Error(response.message || "ไม่สามารถสร้างแฟลชการ์ดได้")
       }
-    } catch (err: any) {
-      setError(err.message || "เกิดข้อผิดพลาดในการสร้างแฟลชการ์ด")
+    } catch (err: unknown) {
+      setError(err instanceof Error ? err.message : "เกิดข้อผิดพลาดในการสร้างแฟลชการ์ด")
     } finally {
       setIsGenerating(false)
     }
@@ -410,7 +410,7 @@ export default function GenerateFlashcardsPage() {
                             ใส่หัวข้อที่ต้องการเรียนรู้
                           </CardTitle>
                           <CardDescription className="text-base">
-                            ระบุหัวข้อหรือเนื้อหาที่ต้องการสร้างแฟลชการ์ด เช่น "ประวัติศาสตร์ไทย", "คณิตศาสตร์ชั้นม.6"
+                            ระบุหัวข้อหรือเนื้อหาที่ต้องการสร้างแฟลชการ์ด เช่น &quot;ประวัติศาสตร์ไทย&quot;, &quot;คณิตศาสตร์ชั้นม.6&quot;
                           </CardDescription>
                         </CardHeader>
                         <CardContent>
@@ -596,7 +596,7 @@ export default function GenerateFlashcardsPage() {
                         <div className="p-1.5 bg-purple-100 rounded-lg">
                           <Brain className="h-4 w-4 text-purple-600" />
                         </div>
-                        ระดับความคิด (Bloom's Taxonomy)
+                        ระดับความคิด (Bloom&apos;s Taxonomy)
                       </Label>
                       <div className="relative">
                         <Select value={bloomLevel} onValueChange={setBloomLevel}>

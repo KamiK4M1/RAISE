@@ -82,9 +82,9 @@ export default function UploadPage() {
       } else {
         throw new Error(response.message || 'Upload failed')
       }
-    } catch (err: any) {
+    } catch (err: unknown) {
       console.error("Upload error:", err)
-      setError(err.message || "An unexpected error occurred during upload.")
+      setError(err instanceof Error ? err.message : "An unexpected error occurred during upload.")
       setUploadProgress(0)
     } finally {
       setUploading(false)

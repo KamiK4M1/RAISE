@@ -36,12 +36,12 @@ interface UseFlashcardQuizState {
   
   // Quiz configuration
   selectedDeckId: string | null
-  quizOptions: any
+  quizOptions: Record<string, unknown> | null
 }
 
 interface UseFlashcardQuizActions {
   // Setup actions
-  startQuiz: (deckId: string, questionCount: number, options: any) => Promise<void>
+  startQuiz: (deckId: string, questionCount: number, options: Record<string, unknown>) => Promise<void>
   resetQuiz: () => void
   
   // Session actions
@@ -92,7 +92,7 @@ export function useFlashcardQuiz(): UseFlashcardQuizState & UseFlashcardQuizActi
     })
   }, [updateState])
 
-  const startQuiz = useCallback(async (deckId: string, questionCount: number, options: any) => {
+  const startQuiz = useCallback(async (deckId: string, questionCount: number, options: Record<string, unknown>) => {
     try {
       updateState({ 
         generatingQuiz: true, 
@@ -104,8 +104,8 @@ export function useFlashcardQuiz(): UseFlashcardQuizState & UseFlashcardQuizActi
       // Generate flashcards for the quiz
       const flashcardOptions: FlashcardOptions = {
         count: questionCount,
-        difficulty: options.difficulty || 'medium',
-        bloom_level: options.bloom_level
+        difficulty: String(options.difficulty) || 'medium',
+        bloom_level: typeof options.bloom_level === 'string' ? options.bloom_level : undefined
       }
 
       console.log('Generating flashcards with options:', flashcardOptions)

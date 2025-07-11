@@ -15,10 +15,10 @@ interface LearningRecommendation {
   estimated_improvement: number
 }
 
-interface LearningRecommendationsData {
-  recommendations: LearningRecommendation[]
-  total_recommendations: number
-}
+// interface LearningRecommendationsData {
+//   recommendations: LearningRecommendation[]
+//   total_recommendations: number
+// }
 
 export function LearningRecommendations() {
   const [recommendations, setRecommendations] = useState<LearningRecommendation[]>([])
@@ -38,7 +38,8 @@ export function LearningRecommendations() {
       const response = await apiService.getLearningRecommendations()
       
       if (response.success && response.data) {
-        setRecommendations(response.data.recommendations || [])
+        const recommendations = (response.data as { recommendations?: LearningRecommendation[] }).recommendations
+        setRecommendations(Array.isArray(recommendations) ? recommendations : [])
       } else {
         throw new Error(response.message || 'Failed to load recommendations')
       }

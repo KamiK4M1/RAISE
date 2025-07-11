@@ -1,6 +1,6 @@
 "use client"
 
-import { useState, useEffect } from "react"
+import { useState, useEffect, useCallback } from "react"
 import { motion, AnimatePresence } from "framer-motion"
 import { Button } from "@/components/ui/button"
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card"
@@ -18,18 +18,14 @@ import {
   Brain,
   ArrowLeft,
   Search,
-  Filter,
   Plus,
   Play,
   MoreVertical,
   BookOpen,
   Clock,
   Target,
-  Zap,
-  Calendar,
   Eye,
   Trash2,
-  Edit,
   AlertCircle,
 } from "lucide-react"
 import Link from "next/link"
@@ -72,7 +68,7 @@ export default function FlashcardLibraryPage() {
 
   useEffect(() => {
     filterSets()
-  }, [flashcardSets, searchQuery, selectedFilter])
+  }, [flashcardSets, searchQuery, selectedFilter, filterSets])
 
   const loadFlashcardSets = async () => {
     try {
@@ -108,8 +104,8 @@ export default function FlashcardLibraryPage() {
             
             // Only include topics that have flashcards
             if (cards.length > 0) {
-              const dueCount = cards.filter((card: any) => card.is_due).length
-              const masteredCount = cards.filter((card: any) => card.review_count >= 5).length
+              const dueCount = cards.filter((card: { is_due: boolean }) => card.is_due).length
+              const masteredCount = cards.filter((card: { review_count: number }) => card.review_count >= 5).length
               
               sets.push({
                 document_id: `topic_${topicName.replace(/\s+/g, '_')}`,
@@ -149,8 +145,8 @@ export default function FlashcardLibraryPage() {
             
             // Only include documents that have flashcards
             if (cards.length > 0) {
-              const dueCount = cards.filter((card: any) => card.is_due).length
-              const masteredCount = cards.filter((card: any) => card.review_count >= 5).length
+              const dueCount = cards.filter((card: { is_due: boolean }) => card.is_due).length
+              const masteredCount = cards.filter((card: { review_count: number }) => card.review_count >= 5).length
               
               sets.push({
                 document_id: document.document_id,
@@ -181,15 +177,15 @@ export default function FlashcardLibraryPage() {
         dueCards: totalDue,
         masteredCards: totalMastered,
       })
-    } catch (err: any) {
+    } catch (err: unknown) {
       console.error('Error loading flashcard sets:', err)
-      setError(err.message || 'ไม่สามารถโหลดข้อมูลแฟลชการ์ดได้')
+      setError(err instanceof Error ? err.message : 'ไม่สามารถโหลดข้อมูลแฟลชการ์ดได้')
     } finally {
       setLoading(false)
     }
   }
 
-  const filterSets = () => {
+  const filterSets = useCallback(() => {
     let filtered = flashcardSets
 
     // Filter by search query
@@ -219,7 +215,7 @@ export default function FlashcardLibraryPage() {
     }
 
     setFilteredSets(filtered)
-  }
+  }, [flashcardSets, searchQuery, selectedFilter])
 
   const handleDeleteSet = (set: FlashcardSet) => {
     setSelectedSet(set)
@@ -563,7 +559,7 @@ export default function FlashcardLibraryPage() {
           <DialogHeader>
             <DialogTitle>ลบชุดแฟลชการ์ด</DialogTitle>
             <DialogDescription>
-              คุณแน่ใจหรือไม่ว่าต้องการลบชุดแฟลชการ์ด "{selectedSet?.source_name}" 
+              คุณแน่ใจหรือไม่ว่าต้องการลบชุดแฟลชการ์ด &quot;{selectedSet?.source_name}&quot; 
               การกระทำนี้จะลบแฟลชการ์ดทั้งหมด {selectedSet?.total_cards} ใบ และไม่สามารถยกเลิกได้
             </DialogDescription>
           </DialogHeader>

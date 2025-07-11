@@ -19,7 +19,7 @@ export default function DocumentPage() {
   const [document, setDocument] = useState<Document | null>(null)
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState<string | null>(null)
-  const [isGenerating, setIsGenerating] = useState(false)
+  // const [isGenerating, setIsGenerating] = useState(false)
   const [isDeleting, setIsDeleting] = useState(false)
 
   useEffect(() => {
@@ -33,8 +33,8 @@ export default function DocumentPage() {
           } else {
             throw new Error(response.message || "Failed to fetch document.")
           }
-        } catch (err: any) {
-          setError(err.message || "An unexpected error occurred.")
+        } catch (err: unknown) {
+          setError(err instanceof Error ? err.message : "An unexpected error occurred.")
         } finally {
           setLoading(false)
         }
@@ -71,8 +71,8 @@ export default function DocumentPage() {
       } else {
         throw new Error(response.message || 'Failed to delete document')
       }
-    } catch (err: any) {
-      setError(err.message || 'เกิดข้อผิดพลาดในการลบเอกสาร')
+    } catch (err: unknown) {
+      setError(err instanceof Error ? err.message : 'เกิดข้อผิดพลาดในการลบเอกสาร')
     } finally {
       setIsDeleting(false)
     }

@@ -7,8 +7,8 @@ import { Progress } from "@/components/ui/progress"
 import { Brain, ArrowLeft, RotateCcw, Eye, EyeOff, CheckCircle, XCircle, Clock, BookOpen } from "lucide-react"
 import Link from "next/link"
 import { apiService } from "@/lib/api"
-import { Flashcard, FlashcardSession } from "@/types/api"
-import { useAsyncApi } from "@/hooks/useApi"
+import { Flashcard } from "@/types/api"
+// import { useAsyncApi } from "@/hooks/useApi"
 import { AuthWrapper } from "@/components/providers/auth-wrpper"
 
 export default function FlashcardsPage() {
@@ -32,13 +32,13 @@ export default function FlashcardsPage() {
         setLoading(true)
         const response = await apiService.getAllUserFlashcards(0, 50)
         
-        if (response.success && response.data && response.data.flashcards) {
+        if (response.success && response.data && Array.isArray((response.data as { flashcards?: Flashcard[] }).flashcards)) {
           // Filter flashcards that are due for review or randomly select some
-          const allCards = response.data.flashcards
+          const allCards = (response.data as { flashcards: Flashcard[] }).flashcards
           const now = new Date()
           
           // Get cards due for review first
-          const dueCards = allCards.filter(card => {
+          const dueCards = allCards.filter((card: Flashcard) => {
             const nextReview = new Date(card.next_review)
             return nextReview <= now
           })
@@ -46,7 +46,7 @@ export default function FlashcardsPage() {
           // If we don't have enough due cards, add some random ones
           let sessionCards = dueCards
           if (sessionCards.length < 10) {
-            const remainingCards = allCards.filter(card => {
+            const remainingCards = allCards.filter((card: Flashcard) => {
               const nextReview = new Date(card.next_review)
               return nextReview > now
             })
@@ -169,18 +169,18 @@ export default function FlashcardsPage() {
                     setLoading(true)
                     const response = await apiService.getAllUserFlashcards(0, 50)
                     
-                    if (response.success && response.data && response.data.flashcards) {
-                      const allCards = response.data.flashcards
+                    if (response.success && response.data && Array.isArray((response.data as { flashcards?: Flashcard[] }).flashcards)) {
+                      const allCards = (response.data as { flashcards: Flashcard[] }).flashcards
                       const now = new Date()
                       
-                      const dueCards = allCards.filter(card => {
+                      const dueCards = allCards.filter((card: Flashcard) => {
                         const nextReview = new Date(card.next_review)
                         return nextReview <= now
                       })
                       
                       let sessionCards = dueCards
                       if (sessionCards.length < 10) {
-                        const remainingCards = allCards.filter(card => {
+                        const remainingCards = allCards.filter((card: Flashcard) => {
                           const nextReview = new Date(card.next_review)
                           return nextReview > now
                         })

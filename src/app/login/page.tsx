@@ -42,7 +42,7 @@ export default function LoginPage() {
           router.push("/dashboard")
         }
       }
-    } catch (error) {
+    } catch {
       setError("เกิดข้อผิดพลาด กรุณาลองใหม่อีกครั้ง")
     } finally {
       setIsLoading(false)
@@ -53,7 +53,7 @@ export default function LoginPage() {
     setIsLoading(true)
     try {
       await signIn("google", { callbackUrl: "/dashboard" })
-    } catch (error) {
+    } catch {
       setError("เกิดข้อผิดพลาดในการเข้าสู่ระบบด้วย Google")
     } finally {
       setIsLoading(false)

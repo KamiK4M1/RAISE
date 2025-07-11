@@ -46,9 +46,9 @@ export default function DashboardPage() {
     totalStudyTime: 0,
   })
   const [recentDocuments, setRecentDocuments] = useState<Document[]>([])
-  const [recentActivities, setRecentActivities] = useState<any[]>([])
-  const [user, setUser] = useState<any>(null)
-  const [loading, setLoading] = useState(true)
+  const [recentActivities, setRecentActivities] = useState<Record<string, unknown>[]>([])
+  const [user, setUser] = useState<Record<string, unknown> | null>(null)
+  const [, setLoading] = useState(true)
   const [deletingDocuments, setDeletingDocuments] = useState<Set<string>>(new Set())
   const [showLogoutDialog, setShowLogoutDialog] = useState(false)
   const [isLoggingOut, setIsLoggingOut] = useState(false)
@@ -147,7 +147,7 @@ export default function DashboardPage() {
           console.log('Activities response:', activitiesResponse)
           if (activitiesResponse.success && activitiesResponse.data?.activities) {
             console.log('Setting activities:', activitiesResponse.data.activities)
-            setRecentActivities(activitiesResponse.data.activities)
+            setRecentActivities(Array.isArray((activitiesResponse.data as { activities: Record<string, unknown>[] }).activities) ? (activitiesResponse.data as { activities: Record<string, unknown>[] }).activities : [])
           } else {
             console.log('No activities data found in response')
           }
@@ -221,8 +221,8 @@ export default function DashboardPage() {
                           </span>
                         </div>
           <div className="flex items-center space-x-2 sm:space-x-4">
-            <span className="hidden sm:inline text-gray-600">สวัสดี, {user?.name || 'นักเรียน'}</span>
-            <span className="sm:hidden text-gray-600 text-sm">{user?.name || 'นักเรียน'}</span>
+            <span className="hidden sm:inline text-gray-600">สวัสดี, {String(user?.name) || 'นักเรียน'}</span>
+            <span className="sm:hidden text-gray-600 text-sm">{String(user?.name) || 'นักเรียน'}</span>
             <Button 
               onClick={handleLogoutClick}
               variant="outline" 
@@ -409,9 +409,9 @@ export default function DashboardPage() {
                       
                       return (
                         <div key={index} className="flex items-center space-x-3">
-                          <div className={`w-2 h-2 ${getIconColorClass(activity.icon_color || 'blue')} rounded-full`}></div>
-                          <span className="text-sm">{activity.title}</span>
-                          <span className="text-xs text-gray-500 ml-auto">{activity.relative_time}</span>
+                          <div className={`w-2 h-2 ${getIconColorClass(String(activity.icon_color) || 'blue')} rounded-full`}></div>
+                          <span className="text-sm">{String(activity.title)}</span>
+                          <span className="text-xs text-gray-500 ml-auto">{String(activity.relative_time)}</span>
                         </div>
                       )
                     })

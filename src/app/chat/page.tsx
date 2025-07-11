@@ -36,7 +36,7 @@ export default function ChatPage() {
   const [inputMessage, setInputMessage] = useState("")
   const [isLoading, setIsLoading] = useState(false)
   const [sessionId, setSessionId] = useState<string | undefined>(undefined)
-  const [selectedDocument, setSelectedDocument] = useState<string | undefined>(undefined)
+  // const [selectedDocument, setSelectedDocument] = useState<string | undefined>(undefined)
   const [documents, setDocuments] = useState<Array<{ document_id: string; filename: string }>>([])
   const messagesEndRef = useRef<HTMLDivElement>(null)
 
@@ -266,8 +266,8 @@ export default function ChatPage() {
                                     <div className="flex items-center space-x-2 mb-2">
                                       <FileText className="h-3 w-3" />
                                       <span className="font-medium">
-                                        {typeof source === "object" && (source as any).document_title
-                                          ? (source as any).document_title
+                                        {typeof source === "object" && (source as Record<string, unknown>).document_title
+                                          ? (source as Record<string, unknown>).document_title as string
                                           : `ส่วนที่ ${index + 1}`}
                                       </span>
                                       {typeof source === "object" && source.similarity && (

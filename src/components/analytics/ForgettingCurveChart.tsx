@@ -7,7 +7,7 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@
 import { apiService } from "@/lib/api"
 import { UserAnalytics } from "@/types/api"
 
-const processChartData = (data: UserAnalytics["forgetting_curve"], timeFrame: string) => {
+const processChartData = (data: UserAnalytics["forgetting_curve"]) => {
   if (!data || data.length === 0) return []
 
   return data.map(item => ({
@@ -30,7 +30,7 @@ export function ForgettingCurveChart() {
         setError(null)
         const response = await apiService.getForgettingCurve()
         if (response.success && response.data) {
-          setAnalytics(response.data)
+          setAnalytics(response.data as unknown as UserAnalytics)
         } else {
           throw new Error(response.message || "Failed to fetch analytics")
         }
@@ -43,7 +43,7 @@ export function ForgettingCurveChart() {
     fetchAnalytics()
   }, [])
 
-  const chartData = analytics ? processChartData(analytics.forgetting_curve, timeFrame) : []
+  const chartData = analytics ? processChartData(analytics.forgetting_curve) : []
 
   if (loading) {
     return (

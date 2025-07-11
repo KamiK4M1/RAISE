@@ -1,8 +1,8 @@
 "use client"
 
-import { useState, useEffect } from "react"
+import { useState, useEffect, useCallback } from "react"
 import { Button } from "@/components/ui/button"
-import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card"
+import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
 import { Progress } from "@/components/ui/progress"
 import { Input } from "@/components/ui/input"
 import { Label } from "@/components/ui/label"
@@ -12,8 +12,6 @@ import {
   ArrowLeft, 
   CheckCircle, 
   XCircle, 
-  Clock, 
-  RotateCcw,
   Lightbulb,
   ArrowRight,
   Timer
@@ -54,7 +52,7 @@ export function FlashcardQuizSession({
   const [showFeedback, setShowFeedback] = useState(false)
   const [isCorrect, setIsCorrect] = useState(false)
   const [sessionResults, setSessionResults] = useState<QuizSessionResults['results']>([])
-  const [startTime, setStartTime] = useState(Date.now())
+  const [startTime, ] = useState(Date.now())
   const [questionStartTime, setQuestionStartTime] = useState(Date.now())
   const [timeLeft, setTimeLeft] = useState(timeLimit)
   const [sessionEnded, setSessionEnded] = useState(false)
@@ -62,6 +60,30 @@ export function FlashcardQuizSession({
   const currentCard = flashcards[currentIndex]
   const isLastQuestion = currentIndex === flashcards.length - 1
   const progress = ((currentIndex + 1) / flashcards.length) * 100
+
+  const handleSubmitAnswer = useCallback(() => {
+    const questionTime = Date.now() - questionStartTime
+    const correct = compareAnswers(userAnswer, currentCard.answer)
+    
+    setIsCorrect(correct)
+    setShowFeedback(true)
+    
+    const result = {
+      flashcard: currentCard,
+      userAnswer: userAnswer,
+      isCorrect: correct,
+      timeTaken: questionTime
+    }
+    
+    setSessionResults(prev => [...prev, result])
+  }, [questionStartTime, userAnswer, currentCard])
+
+  const handleTimeUp = useCallback(() => {
+    if (!sessionEnded) {
+      // Auto-submit current answer or mark as incorrect
+      handleSubmitAnswer()
+    }
+  }, [sessionEnded, handleSubmitAnswer])
 
   // Timer effect
   useEffect(() => {
@@ -78,19 +100,12 @@ export function FlashcardQuizSession({
 
       return () => clearInterval(timer)
     }
-  }, [timeLeft, showFeedback, sessionEnded, timeLimit])
+  }, [timeLeft, showFeedback, sessionEnded, timeLimit, handleTimeUp])
 
   // Reset question start time when moving to next question
   useEffect(() => {
     setQuestionStartTime(Date.now())
   }, [currentIndex])
-
-  const handleTimeUp = () => {
-    if (!sessionEnded) {
-      // Auto-submit current answer or mark as incorrect
-      handleSubmitAnswer()
-    }
-  }
 
   const compareAnswers = (userAnswer: string, correctAnswer: string): boolean => {
     const normalize = (str: string) => str.toLowerCase().trim()
@@ -110,23 +125,6 @@ export function FlashcardQuizSession({
     )
     
     return matchingWords.length >= Math.ceil(correctWords.length * 0.7)
-  }
-
-  const handleSubmitAnswer = () => {
-    const questionTime = Date.now() - questionStartTime
-    const correct = compareAnswers(userAnswer, currentCard.answer)
-    
-    setIsCorrect(correct)
-    setShowFeedback(true)
-    
-    const result = {
-      flashcard: currentCard,
-      userAnswer: userAnswer,
-      isCorrect: correct,
-      timeTaken: questionTime
-    }
-    
-    setSessionResults(prev => [...prev, result])
   }
 
   const handleNextQuestion = () => {

@@ -66,8 +66,8 @@ export default function RegisterPage() {
       setTimeout(() => {
         router.push("/login")
       }, 2000)
-    } catch (error: any) {
-      setError(error.message || "เกิดข้อผิดพลาด กรุณาลองใหม่อีกครั้ง")
+    } catch (error: unknown) {
+      setError(error instanceof Error ? error.message : "เกิดข้อผิดพลาด กรุณาลองใหม่อีกครั้ง")
     } finally {
       setIsLoading(false)
     }
@@ -77,7 +77,7 @@ export default function RegisterPage() {
     setIsLoading(true)
     try {
       await signIn("google", { callbackUrl: "/dashboard" })
-    } catch (error) {
+    } catch {
       setError("เกิดข้อผิดพลาดในการสมัครสมาชิกด้วย Google")
     } finally {
       setIsLoading(false)

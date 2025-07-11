@@ -24,7 +24,7 @@ export function createErrorResponse(error: unknown): NextResponse {
   if (error instanceof ApiException) {
     return NextResponse.json(
       {
-        error: error.message,
+        error: error instanceof Error ? error.message : String(error).message,
         code: error.code,
       },
       { status: error.statusCode }
@@ -56,7 +56,7 @@ export function createErrorResponse(error: unknown): NextResponse {
   )
 }
 
-export function createSuccessResponse(data: any, status: number = 200): NextResponse {
+export function createSuccessResponse(data: unknown, status: number = 200): NextResponse {
   return NextResponse.json(data, { status })
 }
 
@@ -116,7 +116,7 @@ export const validators = {
 
 // Database connection helper
 export async function withDatabase<T>(
-  operation: (db: any) => Promise<T>
+  operation: (db: unknown) => Promise<T>
 ): Promise<T> {
   const { MongoClient } = await import("mongodb")
   const client = new MongoClient(process.env.MONGODB_URI!)

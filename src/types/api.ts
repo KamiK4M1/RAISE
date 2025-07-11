@@ -172,7 +172,7 @@ export interface UserAnalytics {
     most_active_hour: number;
     consistency_score: number;
     weekly_activity: Array<{
-      score: any;
+      score: number;
       day: string;
       hours_studied: number;
     }>;
