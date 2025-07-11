@@ -104,7 +104,7 @@ export default function GenerateFlashcardsPage() {
       }
 
       if (response.success && response.data) {
-        setGeneratedFlashcards(response.data)
+        setGeneratedFlashcards(response.data as Record<string, unknown>)
         setShowSuccessDialog(true)
       } else {
         throw new Error(response.message || "ไม่สามารถสร้างแฟลชการ์ดได้")
