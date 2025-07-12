@@ -241,7 +241,7 @@ export default function FlashcardPage() {
               <Brain className="h-8 w-8 text-blue-600" />
               <div>
                 <h1 className="text-xl font-bold text-gray-900">
-                  {String(documentInfo?.source_name) || String(documentInfo?.filename) || 'แฟลชการ์ด'}
+                  RAISE
                 </h1>
                 {Boolean(documentInfo?.is_topic_based) && (
                   <p className="text-sm text-gray-600">หัวข้อการเรียนรู้</p>
