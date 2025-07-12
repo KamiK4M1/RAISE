@@ -28,39 +28,39 @@ class EmbeddingService:
                 headers = {
                     "Content-Type": "application/json"
                 }
-            
-            # Add authentication header if token is provided
-            if self.auth_token:
-                headers["Authorization"] = f"Bearer {self.auth_token}"
-            
-            payload = {
-                "texts": texts
-            }
-            
-            async with aiohttp.ClientSession() as session:
-                async with session.post(
-                    f"{self.embedding_endpoint}/api/embeddings",
-                    json=payload,
-                    headers=headers,
-                    timeout=aiohttp.ClientTimeout(
-                        total=900,  # 15 minutes total timeout
-                        connect=60,  # 60 seconds to establish connection
-                        sock_read=600,  # 10 minutes to read response
-                        sock_connect=60  # 60 seconds for socket connection
-                    )
-                ) as response:
-                    if response.status != 200:
-                        error_text = await response.text()
-                        raise EmbeddingError(f"Embedding API error: {response.status} - {error_text}")
-                    
-                    result = await response.json()
-                    
-                    if not result.get("success"):
-                        raise EmbeddingError(f"Embedding API returned error: {result.get('error', 'Unknown error')}")
-                    
-                    embeddings = result.get("embeddings", [])
-                    logger.info(f"Generated embeddings for {len(texts)} texts")
-                    return embeddings
+                
+                # Add authentication header if token is provided
+                if self.auth_token:
+                    headers["Authorization"] = f"Bearer {self.auth_token}"
+                
+                payload = {
+                    "texts": texts
+                }
+                
+                async with aiohttp.ClientSession() as session:
+                    async with session.post(
+                        f"{self.embedding_endpoint}/api/embeddings",
+                        json=payload,
+                        headers=headers,
+                        timeout=aiohttp.ClientTimeout(
+                            total=900,  # 15 minutes total timeout
+                            connect=60,  # 60 seconds to establish connection
+                            sock_read=600,  # 10 minutes to read response
+                            sock_connect=60  # 60 seconds for socket connection
+                        )
+                    ) as response:
+                        if response.status != 200:
+                            error_text = await response.text()
+                            raise EmbeddingError(f"Embedding API error: {response.status} - {error_text}")
+                        
+                        result = await response.json()
+                        
+                        if not result.get("success"):
+                            raise EmbeddingError(f"Embedding API returned error: {result.get('error', 'Unknown error')}")
+                        
+                        embeddings = result.get("embeddings", [])
+                        logger.info(f"Generated embeddings for {len(texts)} texts")
+                        return embeddings
             
             except (aiohttp.ClientError, asyncio.TimeoutError) as e:
                 logger.warning(f"Attempt {attempt + 1}/{max_retries} failed: {e}")
