@@ -4,11 +4,10 @@ import { useState, useEffect } from "react"
 import { Button } from "../../components/ui/button"
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card"
 import { Progress } from "@/components/ui/progress"
-import { Brain, ArrowLeft, RotateCcw, Eye, EyeOff, CheckCircle, XCircle, Clock, BookOpen } from "lucide-react"
+import { Brain, ArrowLeft, RotateCcw, Eye, EyeOff, CheckCircle, XCircle, Clock, BookOpen, Star } from "lucide-react"
 import Link from "next/link"
 import { apiService } from "@/lib/api"
 import { Flashcard } from "@/types/api"
-// import { useAsyncApi } from "@/hooks/useApi"
 import { AuthWrapper } from "@/components/providers/auth-wrpper"
 
 export default function FlashcardsPage() {
@@ -74,25 +73,26 @@ export default function FlashcardsPage() {
     loadFlashcards()
   }, [])
 
-  const handleAnswer = async (difficulty: "easy" | "medium" | "hard") => {
+  const handleAnswer = async (quality: number) => {
     if (flashcards.length === 0) return
     
-    const qualityMap = { easy: 5, medium: 3, hard: 1 }
-    const timeSpent = Date.now() - cardStartTime
+    const timeSpent = Math.round((Date.now() - cardStartTime) / 1000)
+    const isCorrect = quality >= 3
     
     try {
       const answer = {
         card_id: flashcards[currentCard].card_id,
-        quality: qualityMap[difficulty],
+        quality: quality,
         time_taken: timeSpent,
-        user_answer: "" // Could be enhanced to capture user input
+        is_correct: isCorrect,
+        user_answer: ""
       }
 
       const response = await apiService.submitFlashcardAnswer(answer)
       
       if (response.success) {
         // Update session stats
-        if (difficulty === "easy") {
+        if (isCorrect) {
           setStudySession((prev) => ({ ...prev, correct: prev.correct + 1, total: prev.total + 1 }))
         } else {
           setStudySession((prev) => ({ ...prev, incorrect: prev.incorrect + 1, total: prev.total + 1 }))
@@ -105,12 +105,18 @@ export default function FlashcardsPage() {
           setCardStartTime(Date.now())
         } else {
           // End of session
-          const totalTime = Date.now() - sessionStartTime
-          const finalCorrect = studySession.correct + (difficulty === "easy" ? 1 : 0)
-          const finalIncorrect = studySession.incorrect + (difficulty === "easy" ? 0 : 1)
+          const totalTime = Math.round((Date.now() - sessionStartTime) / 1000)
+          const finalCorrect = studySession.correct + (isCorrect ? 1 : 0)
+          const finalIncorrect = studySession.incorrect + (isCorrect ? 0 : 1)
+          const accuracy = Math.round((finalCorrect / (finalCorrect + finalIncorrect)) * 100)
           
           alert(
-            `เสร็จสิ้นการทบทวน!\nถูก: ${finalCorrect}\nผิด: ${finalIncorrect}\nเวลาที่ใช้: ${Math.round(totalTime / 1000)} วินาที`
+            `🎉 เสร็จสิ้นการทบทวน!\n\n` +
+            `✅ ถูก: ${finalCorrect} ข้อ\n` +
+            `❌ ผิด: ${finalIncorrect} ข้อ\n` +
+            `📊 ความแม่นยำ: ${accuracy}%\n` +
+            `⏱️ เวลาที่ใช้: ${Math.floor(totalTime / 60)} นาที ${totalTime % 60} วินาที\n\n` +
+            `ระบบ SM-2 จะปรับช่วงเวลาทบทวนให้เหมาะสมกับความสามารถของคุณ`
           )
         }
       }
@@ -131,6 +137,18 @@ export default function FlashcardsPage() {
     setStudySession({ correct: 0, incorrect: 0, total: 0 })
     setSessionStartTime(Date.now())
     setCardStartTime(Date.now())
+  }
+
+  const getQualityLabel = (quality: number) => {
+    switch (quality) {
+      case 0: return { text: "ลืมหมด", desc: "ไม่จำได้เลย", color: "text-red-800", bg: "bg-red-100", border: "border-red-300" }
+      case 1: return { text: "ผิด (ง่าย)", desc: "ตอบผิดแต่คำตอบดูง่าย", color: "text-red-700", bg: "bg-red-50", border: "border-red-200" }
+      case 2: return { text: "ผิด (ยาก)", desc: "ตอบผิดและคำตอบดูยาก", color: "text-orange-700", bg: "bg-orange-50", border: "border-orange-200" }
+      case 3: return { text: "ถูก (ยาก)", desc: "ตอบถูกแต่ใช้เวลานาน", color: "text-yellow-700", bg: "bg-yellow-50", border: "border-yellow-200" }
+      case 4: return { text: "ถูก (ลังเล)", desc: "ตอบถูกแต่ลังเลเล็กน้อย", color: "text-green-700", bg: "bg-green-50", border: "border-green-200" }
+      case 5: return { text: "ถูก (แม่นยำ)", desc: "ตอบถูกทันทีและมั่นใจ", color: "text-green-800", bg: "bg-green-100", border: "border-green-300" }
+      default: return { text: "ไม่ทราบ", desc: "", color: "text-gray-700", bg: "bg-gray-50", border: "border-gray-200" }
+    }
   }
 
   const progress = flashcards.length > 0 ? ((currentCard + 1) / flashcards.length) * 100 : 0
@@ -163,48 +181,7 @@ export default function FlashcardsPage() {
               onClick={() => {
                 setError(null);
                 setLoading(true);
-                // Trigger reload by calling the effect
-                const loadFlashcards = async () => {
-                  try {
-                    setLoading(true)
-                    const response = await apiService.getAllUserFlashcards(0, 50)
-                    
-                    if (response.success && response.data && Array.isArray((response.data as { flashcards?: Flashcard[] }).flashcards)) {
-                      const allCards = (response.data as { flashcards: Flashcard[] }).flashcards
-                      const now = new Date()
-                      
-                      const dueCards = allCards.filter((card: Flashcard) => {
-                        const nextReview = new Date(card.next_review)
-                        return nextReview <= now
-                      })
-                      
-                      let sessionCards = dueCards
-                      if (sessionCards.length < 10) {
-                        const remainingCards = allCards.filter((card: Flashcard) => {
-                          const nextReview = new Date(card.next_review)
-                          return nextReview > now
-                        })
-                        const needed = Math.min(10 - sessionCards.length, remainingCards.length)
-                        sessionCards = [...sessionCards, ...remainingCards.slice(0, needed)]
-                      }
-                      
-                      setFlashcards(sessionCards.slice(0, 10))
-                      setCurrentCard(0)
-                      setShowAnswer(false)
-                      setSessionStartTime(Date.now())
-                      setCardStartTime(Date.now())
-                    } else {
-                      throw new Error(response.message || 'Failed to load flashcards')
-                    }
-                  } catch (error) {
-                    console.error('Error loading flashcards:', error)
-                    const errorMessage = error instanceof Error ? error.message : 'ไม่สามารถโหลดแฟลชการ์ดได้'
-                    setError(errorMessage)
-                  } finally {
-                    setLoading(false)
-                  }
-                }
-                loadFlashcards();
+                window.location.reload();
               }} 
               className="bg-blue-600 hover:bg-blue-700 w-full"
             >
@@ -295,7 +272,14 @@ export default function FlashcardsPage() {
           {/* Header */}
           <div className="mb-8">
             <h1 className="text-3xl font-bold text-gray-900 mb-2">แฟลชการ์ดอัจฉริยะ</h1>
-            <p className="text-gray-600">ทบทวนความรู้ด้วยระบบ Spaced Repetition เพื่อเพิ่มประสิทธิภาพการจำ</p>
+            <p className="text-gray-600">ทบทวนความรู้ด้วยระบบ Spaced Repetition Algorithm (SM-2) เพื่อเพิ่มประสิทธิภาพการจำ</p>
+            <div className="mt-2 p-3 bg-blue-50 rounded-lg border border-blue-200">
+              <p className="text-sm text-blue-800">
+                <Star className="h-4 w-4 inline mr-1" />
+                <strong>SM-2 Algorithm:</strong> ระบบจะปรับช่วงเวลาทบทวนตามการประเมินความยากง่าย (Quality 0-5) 
+                โดยใช้สูตร I(n) = I(n-1) × EF เพื่อหาช่วงเวลาที่เหมาะสมที่สุด
+              </p>
+            </div>
           </div>
 
           {/* Progress */}
@@ -306,11 +290,8 @@ export default function FlashcardsPage() {
                 {currentCard + 1} / {flashcards.length}
               </span>
             </div>
-            <Progress value={progress} className="h-2" />
+            <Progress value={progress} className="h-3" />
           </div>
-
-          {/* Stats */}
-          <div className="grid grid-cols-3 gap-4 mb-8"></div>
 
           {/* Stats */}
           <div className="grid grid-cols-3 gap-4 mb-8">
@@ -347,8 +328,10 @@ export default function FlashcardsPage() {
                   <div>
                     <CardTitle className="text-lg">แฟลชการ์ด</CardTitle>
                     <CardDescription>
-                      ระดับความยาก: {flashcards[currentCard].difficulty} | ทบทวนครั้งถัดไป:{" "}
-                      {new Date(flashcards[currentCard].next_review).toLocaleDateString('th-TH')}
+                      ระดับความยาก: {flashcards[currentCard].difficulty} | 
+                      EF: {flashcards[currentCard].ease_factor?.toFixed(2) || '2.50'} | 
+                      ช่วงเวลา: {flashcards[currentCard].interval || 1} วัน | 
+                      ทบทวนครั้งถัดไป: {new Date(flashcards[currentCard].next_review).toLocaleDateString('th-TH')}
                     </CardDescription>
                   </div>
                   <Button
@@ -378,55 +361,56 @@ export default function FlashcardsPage() {
             </Card>
           </div>
 
-          {/* Answer Buttons */}
+          {/* SM-2 Quality Rating Buttons */}
           {showAnswer && (
-            <div className="grid grid-cols-3 gap-4">
-              <Button
-                onClick={() => handleAnswer("hard")}
-                variant="outline"
-                className="bg-red-50 text-red-700 border-red-200 hover:bg-red-100 py-6"
-              >
-                <div className="text-center">
-                  <XCircle className="h-6 w-6 mx-auto mb-2" />
-                  <div className="font-semibold">ยาก</div>
-                  <div className="text-sm opacity-75">ทบทวนใน 1 วัน</div>
-                </div>
-              </Button>
+            <div className="space-y-4">
+              <div className="text-center mb-6">
+                <h3 className="text-lg font-semibold text-gray-900 mb-2">ประเมินความยากง่ายในการจำ (SM-2 Quality Scale)</h3>
+                <p className="text-sm text-gray-600">การประเมินนี้จะใช้ในการคำนวณช่วงเวลาทบทวนครั้งถัดไป</p>
+              </div>
+              
+              <div className="grid grid-cols-2 md:grid-cols-3 gap-3">
+                {[0, 1, 2, 3, 4, 5].map((quality) => {
+                  const { text, desc, color, bg, border } = getQualityLabel(quality)
+                  return (
+                    <Button
+                      key={quality}
+                      onClick={() => handleAnswer(quality)}
+                      variant="outline"
+                      className={`${bg} ${color} ${border} hover:opacity-80 p-4 h-auto`}
+                    >
+                      <div className="text-center w-full">
+                        <div className="font-bold text-lg mb-1">{quality}</div>
+                        <div className="font-semibold text-sm mb-1">{text}</div>
+                        <div className="text-xs opacity-75 leading-tight">{desc}</div>
+                      </div>
+                    </Button>
+                  )
+                })}
+              </div>
 
-              <Button
-                onClick={() => handleAnswer("medium")}
-                variant="outline"
-                className="bg-yellow-50 text-yellow-700 border-yellow-200 hover:bg-yellow-100 py-6"
-              >
-                <div className="text-center">
-                  <Clock className="h-6 w-6 mx-auto mb-2" />
-                  <div className="font-semibold">ปานกลาง</div>
-                  <div className="text-sm opacity-75">ทบทวนใน 3 วัน</div>
-                </div>
-              </Button>
-
-              <Button
-                onClick={() => handleAnswer("easy")}
-                variant="outline"
-                className="bg-green-50 text-green-700 border-green-200 hover:bg-green-100 py-6"
-              >
-                <div className="text-center">
-                  <CheckCircle className="h-6 w-6 mx-auto mb-2" />
-                  <div className="font-semibold">ง่าย</div>
-                  <div className="text-sm opacity-75">ทบทวนใน 7 วัน</div>
-                </div>
-              </Button>
+              <div className="mt-6 p-4 bg-gray-50 rounded-lg border">
+                <h4 className="font-semibold text-gray-900 mb-2">คำแนะนำในการประเมิน:</h4>
+                <ul className="text-sm text-gray-700 space-y-1">
+                  <li><strong>0-2:</strong> ตอบผิดหรือไม่จำได้ → ระบบจะให้ทบทวนเร็วขึ้น</li>
+                  <li><strong>3:</strong> ตอบถูกแต่ยาก → ระบบจะให้ทบทวนบ่อยขึ้นเล็กน้อย</li>
+                  <li><strong>4:</strong> ตอบถูกแต่ลังเล → ระบบจะเพิ่มช่วงเวลาทบทวนตามปกติ</li>
+                  <li><strong>5:</strong> ตอบถูกทันทีและมั่นใจ → ระบบจะเพิ่มช่วงเวลาทบทวนมากขึ้น</li>
+                </ul>
+                
+              </div>
             </div>
           )}
 
           {!showAnswer && (
             <div className="text-center">
-              <p className="text-gray-600 mb-4">คิดคำตอบแล้วคลิกเพื่อดูคำตอบ</p>
+              <p className="text-gray-600 mb-4">อ่านคำถามและคิดคำตอบในใจ แล้วคลิกเพื่อดูคำตอบ</p>
               <Button
                 onClick={() => setShowAnswer(true)}
-                className="bg-blue-600 hover:bg-blue-700 text-white px-8 py-3"
+                className="bg-blue-600 hover:bg-blue-700 text-white px-8 py-3 text-lg"
               >
-                แสดงคำตอบ
+                <Eye className="h-5 w-5 mr-2" />
+                แสดงคำตอบและประเมิน
               </Button>
             </div>
           )}

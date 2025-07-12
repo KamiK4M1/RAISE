@@ -45,6 +45,7 @@ export interface FlashcardAnswer {
   quality: number;
   time_taken: number;
   user_answer: string;
+  is_correct: boolean;
 }
 
 export interface FlashcardOptions {
