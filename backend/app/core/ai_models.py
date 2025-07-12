@@ -263,108 +263,91 @@ class TogetherAIClient:
             chunks.append(' '.join(current_chunk))
         
         return chunks
-
+    
     async def generate_flashcards(self, content: str, count: int = 10) -> List[Dict[str, str]]:
         """Generate flashcards from content with chunking for large documents"""
         system_prompt = """คุณเป็นผู้ช่วยสร้างบัตรคำศัพท์ (flash cards) ที่ช่วยในการเรียนรู้ 
-        สร้างคำถามและคำตอบที่มีคุณภาพสูงจากเนื้อหาที่ให้มา โดยใช้ไวยากรณ์ภาษาไทยที่ถูกต้อง
-        ให้ตอบในรูปแบบ JSON array ที่มี objects ที่มี fields: question, answer, difficulty
-        difficulty ให้เป็น easy, medium, หรือ hard
-        
-        สำคัญ - ตรวจสอบไวยากรณ์ภาษาไทยให้ถูกต้อง:
-        - ใช้คำศัพท์ที่ถูกต้อง (เช่น "กล้ามเนื้อ" ไม่ใช่ "กลามเนอ", "ข้อต่อแบบลูกกลมในเบ้า" ไม่ใช่ "ขอตอแบบลกกลมในเบา")
-        - ใช้คำบุพบท คำสันธาน ให้เหมาะสมกับบริบท
-        - ใช้เครื่องหมายวรรคตอนให้ถูกต้อง
-        - ใช้การเชื่อมประโยคที่เป็นธรรมชาติ
-        - ตรวจสอบการสะกดคำให้ถูกต้อง
-        - ใช้ "flash cards" (แยกเป็น 2 คำ) ไม่ใช่ "flashcards"
-        - ใช้ "quiz" หรือ "quizzes" (สะกดให้ถูกต้อง)
-        
-        คำศัพท์ทางวิทยาศาสตร์ที่ต้องใช้ให้ถูกต้อง:
-        - ข้อต่อแบบลูกกลมในเบ้า (ball and socket joint) - เคลื่อนไหวได้หลายทิศทาง
-        - ข้อต่อแบบบานพับ (hinge joint) - เคลื่อนไหวได้ทิศทางเดียว
-        - ข้อต่อแบบหมุน (pivot joint) - หมุนรอบแกน
-        - กล้ามเนื้อ (muscle) - เนื้อเยื่อที่หดตัวได้
-        - เส้นใยกล้ามเนื้อ (muscle fiber) - เซลล์กล้ามเนื้อ
-        - เส้นเอ็น (tendon) - เชื่อมกล้ามเนื้อกับกระดูก
-        - เอ็นยึด (ligament) - เชื่อมกระดูกกับกระดูก
-        - กระดูกอ่อน (cartilage) - เนื้อเยื่อยืดหยุ่น
-        
-        หลักการสร้างคำถาม:
-        - คำถามต้องชัดเจน เข้าใจง่าย
-        - คำตอบต้องตรงประเด็นและถูกต้องทางวิทยาศาสตร์
-        - ใช้คำศัพท์ทางวิทยาศาสตร์ที่ถูกต้อง
-        - หลีกเลี่ยงคำที่กำกวมหรือใช้ยาก
-        - ให้ตัวอย่างที่เป็นรูปธรรม"""
-        
+    สร้างคำถามและคำตอบที่มีคุณภาพสูงจากเนื้อหาที่ให้มา โดยใช้ไวยากรณ์ที่ถูกต้องในภาษาที่เหมาะสมกับเนื้อหา (ภาษาไทย, ภาษาอังกฤษ, หรือภาษาญี่ปุ่น)
+    - หากเนื้อหาเป็นภาษาไทย ให้ใช้ไวยากรณ์และคำศัพท์ภาษาไทยที่ถูกต้อง
+    - หากเนื้อหาเป็นภาษาอังกฤษหรือญี่ปุ่น ให้ใช้ไวยากรณ์และคำศัพท์ที่ถูกต้องตามภาษานั้น ๆ
+    - หลีกเลี่ยงการสะกดผิด ห้ามใช้ภาษาผสมแบบมั่ว (เช่น ภาษาเกาหลีในข้อความภาษาไทยโดยไม่มีเหตุผล)
+    - ห้ามแต่งเติมเนื้อหาที่ไม่มีในเอกสาร
+    - ให้ตอบในรูปแบบ JSON array ที่มี objects ที่มี fields: question, answer, difficulty
+    - difficulty ให้เป็น easy, medium, หรือ hard
+    
+    ข้อแนะนำเพิ่มเติม:
+    - ใช้คำศัพท์ทางวิทยาศาสตร์ให้ถูกต้อง
+    - คำถามต้องชัดเจน เข้าใจง่าย
+    - คำตอบต้องตรงประเด็นและถูกต้องทางวิทยาศาสตร์
+    - หลีกเลี่ยงคำที่กำกวมหรือใช้ยาก
+    - ให้ตัวอย่างที่เป็นรูปธรรม
+    - ใช้ "flash cards" (แยกเป็น 2 คำ) ไม่ใช่ "flashcards"
+    - ใช้ "quiz" หรือ "quizzes" (สะกดให้ถูกต้อง)"""
+    
         all_flashcards = []
-        
-        # Check if content is too long and needs chunking
+    
         if len(content) > 2000:  # Conservative chunking for token limits
             chunks = self.chunk_content(content, 2000)
             cards_per_chunk = max(1, count // len(chunks))
-            
+    
             for i, chunk in enumerate(chunks):
-                # Calculate how many cards to generate from this chunk
                 remaining_cards = count - len(all_flashcards)
                 if remaining_cards <= 0:
                     break
-                    
-                chunk_cards = min(cards_per_chunk, remaining_cards)
-                if i == len(chunks) - 1:  # Last chunk gets any remaining cards
-                    chunk_cards = remaining_cards
                 
+                chunk_cards = min(cards_per_chunk, remaining_cards)
+                if i == len(chunks) - 1:  # Last chunk gets remaining cards
+                    chunk_cards = remaining_cards
+    
                 prompt = f"""สร้าง flash cards {chunk_cards} ใบจากเนื้อหาต่อไปนี้:
-
-{chunk}
-
-ให้ตอบในรูปแบบ JSON array เท่านั้น:
-[
-  {{
-    "question": "คำถาม",
-    "answer": "คำตอบ",
-    "difficulty": "medium"
-  }}
-]"""
-
+    
+    {chunk}
+    
+    ให้ตอบในรูปแบบ JSON array เท่านั้น:
+    [
+      {{
+        "question": "คำถาม",
+        "answer": "คำตอบ",
+        "difficulty": "medium"
+      }}
+    ]"""
+    
                 try:
                     response = await self.generate_response(prompt, system_prompt, max_tokens=1024, retry_count=3)
                     import json
-                    
+    
                     try:
                         flashcards = json.loads(response)
                         all_flashcards.extend(flashcards[:chunk_cards])
                     except json.JSONDecodeError:
                         logger.warning(f"JSON parsing failed for chunk {i+1}, skipping")
                         continue
-                        
+                    
                 except Exception as e:
                     logger.error(f"Error generating flashcards for chunk {i+1}: {e}")
                     continue
         else:
-            # Content is small enough, process normally
             prompt = f"""สร้าง flash cards {count} ใบจากเนื้อหาต่อไปนี้:
-
-{content}
-
-ให้ตอบในรูปแบบ JSON array เท่านั้น:
-[
-  {{
-    "question": "คำถาม",
-    "answer": "คำตอบ",
-    "difficulty": "medium"
-  }}
-]"""
-
+    
+    {content}
+    
+    ให้ตอบในรูปแบบ JSON array เท่านั้น:
+    [
+      {{
+        "question": "คำถาม",
+        "answer": "คำตอบ",
+        "difficulty": "medium"
+      }}
+    ]"""
+    
             try:
                 response = await self.generate_response(prompt, system_prompt, max_tokens=1500, retry_count=3)
                 import json
-                
+    
                 try:
                     flashcards = json.loads(response)
                     all_flashcards.extend(flashcards)
                 except json.JSONDecodeError:
-                    # Fallback: create mock flashcards if JSON parsing fails
                     all_flashcards = [
                         {
                             "question": f"คำถามที่ {i+1} จากเนื้อหา",
@@ -373,10 +356,9 @@ class TogetherAIClient:
                         }
                         for i in range(min(count, 3))
                     ]
-                    
+    
             except Exception as e:
                 logger.error(f"Flashcard generation error: {e}")
-                # Return mock flashcards as fallback
                 all_flashcards = [
                     {
                         "question": f"คำถามตัวอย่างที่ {i+1}",
@@ -385,8 +367,7 @@ class TogetherAIClient:
                     }
                     for i in range(min(count, 3))
                 ]
-        
-        # Ensure we don't exceed requested count and have at least some cards
+    
         result = all_flashcards[:count] if all_flashcards else [
             {
                 "question": f"คำถามตัวอย่างที่ {i+1}",
@@ -395,52 +376,39 @@ class TogetherAIClient:
             }
             for i in range(min(count, 3))
         ]
-        
+    
         return result
 
     async def generate_flashcards_from_prompt(self, prompt: str, count: int = 10) -> List[Dict[str, str]]:
         """Generate flashcards from a custom prompt"""
         system_prompt = """คุณเป็นผู้ช่วยสร้างบัตรคำศัพท์ (flash cards) ที่ช่วยในการเรียนรู้ 
-        สร้างคำถามและคำตอบที่มีคุณภาพสูงตามที่ร้องขอ โดยใช้ไวยากรณ์ภาษาไทยที่ถูกต้อง
-        ให้ตอบในรูปแบบ JSON array ที่มี objects ที่มี fields: question, answer, difficulty
-        difficulty ให้เป็น easy, medium, หรือ hard
-        
-        สำคัญ - ตรวจสอบไวยากรณ์ภาษาไทยให้ถูกต้อง:
-        - ใช้คำศัพท์ที่ถูกต้อง (เช่น "กล้ามเนื้อ" ไม่ใช่ "กลามเนอ", "ข้อต่อแบบลูกกลมในเบ้า" ไม่ใช่ "ขอตอแบบลกกลมในเบา")
-        - ใช้คำบุพบท คำสันธาน ให้เหมาะสมกับบริบท
-        - ใช้เครื่องหมายวรรคตอนให้ถูกต้อง
-        - ใช้การเชื่อมประโยคที่เป็นธรรมชาติ
-        - ตรวจสอบการสะกดคำให้ถูกต้อง
-        - ใช้ "flash cards" (แยกเป็น 2 คำ) ไม่ใช่ "flashcards"
-        - ใช้ "quiz" หรือ "quizzes" (สะกดให้ถูกต้อง)
-        
-        คำศัพท์ทางวิทยาศาสตร์ที่ต้องใช้ให้ถูกต้อง:
-        - ข้อต่อแบบลูกกลมในเบ้า (ball and socket joint) - เคลื่อนไหวได้หลายทิศทาง
-        - ข้อต่อแบบบานพับ (hinge joint) - เคลื่อนไหวได้ทิศทางเดียว
-        - ข้อต่อแบบหมุน (pivot joint) - หมุนรอบแกน
-        - กล้ามเนื้อ (muscle) - เนื้อเยื่อที่หดตัวได้
-        - เส้นใยกล้ามเนื้อ (muscle fiber) - เซลล์กล้ามเนื้อ
-        - เส้นเอ็น (tendon) - เชื่อมกล้ามเนื้อกับกระดูก
-        - เอ็นยึด (ligament) - เชื่อมกระดูกกับกระดูก
-        - กระดูกอ่อน (cartilage) - เนื้อเยื่อยืดหยุ่น
-        
-        หลักการสร้างคำถาม:
+        สร้างคำถามและคำตอบที่มีคุณภาพสูงตามที่ร้องขอ โดยใช้ไวยากรณ์ที่ถูกต้องในภาษาที่เหมาะสมกับเนื้อหา (ภาษาไทย, ภาษาอังกฤษ, หรือภาษาญี่ปุ่น)
+        - หากเนื้อหาเป็นภาษาไทย ให้ใช้ไวยากรณ์และคำศัพท์ภาษาไทยที่ถูกต้อง
+        - หากเนื้อหาเป็นภาษาอังกฤษหรือญี่ปุ่น ให้ใช้ไวยากรณ์และคำศัพท์ที่ถูกต้องตามภาษานั้น ๆ
+        - หลีกเลี่ยงการสะกดผิด ห้ามใช้ภาษาผสมแบบมั่ว (เช่น ภาษาเกาหลีในข้อความภาษาไทยโดยไม่มีเหตุผล)
+        - ห้ามแต่งเติมเนื้อหาที่ไม่มีในคำขอ
+        - ให้ตอบในรูปแบบ JSON array ที่มี objects ที่มี fields: question, answer, difficulty
+        - difficulty ให้เป็น easy, medium, หรือ hard
+
+        ข้อแนะนำเพิ่มเติม:
+        - ใช้คำศัพท์ทางวิทยาศาสตร์ให้ถูกต้อง
         - คำถามต้องชัดเจน เข้าใจง่าย
         - คำตอบต้องตรงประเด็นและถูกต้องทางวิทยาศาสตร์
-        - ใช้คำศัพท์ทางวิทยาศาสตร์ที่ถูกต้อง
         - หลีกเลี่ยงคำที่กำกวมหรือใช้ยาก
-        - ให้ตัวอย่างที่เป็นรูปธรรม"""
-        
+        - ให้ตัวอย่างที่เป็นรูปธรรม
+        - ใช้ "flash cards" (แยกเป็น 2 คำ) ไม่ใช่ "flashcards"
+        - ใช้ "quiz" หรือ "quizzes" (สะกดให้ถูกต้อง)"""
+
         formatted_prompt = f"""{prompt}
 
-ให้ตอบในรูปแบบ JSON array เท่านั้น:
-[
-  {{
-    "question": "คำถาม",
-    "answer": "คำตอบ",
-    "difficulty": "medium"
-  }}
-]"""
+        ให้ตอบในรูปแบบ JSON array เท่านั้น:
+        [
+          {{
+            "question": "คำถาม",
+            "answer": "คำตอบ",
+            "difficulty": "medium"
+          }}
+        ]"""
 
         try:
             response = await self.generate_response(formatted_prompt, system_prompt, max_tokens=1500, retry_count=3)
