@@ -37,31 +37,31 @@ export function ForgettingCurvePreview() {
           // Take only first 4 points for preview
           setCurveData(data.forgetting_curve.slice(0, 4))
         } else {
-          // Use fallback data
+          // Show zero data when user has no data
           setCurveData([
-            { interval_days: 1, retention_rate: 0.92, review_count: 45, average_quality: 4.2, confidence_interval: [0.88, 0.96] },
-            { interval_days: 3, retention_rate: 0.85, review_count: 38, average_quality: 3.8, confidence_interval: [0.80, 0.90] },
-            { interval_days: 7, retention_rate: 0.78, review_count: 32, average_quality: 3.5, confidence_interval: [0.72, 0.84] },
-            { interval_days: 14, retention_rate: 0.72, review_count: 28, average_quality: 3.2, confidence_interval: [0.65, 0.79] }
+            { interval_days: 1, retention_rate: 0, review_count: 0, average_quality: 0, confidence_interval: [0, 0] },
+            { interval_days: 3, retention_rate: 0, review_count: 0, average_quality: 0, confidence_interval: [0, 0] },
+            { interval_days: 7, retention_rate: 0, review_count: 0, average_quality: 0, confidence_interval: [0, 0] },
+            { interval_days: 14, retention_rate: 0, review_count: 0, average_quality: 0, confidence_interval: [0, 0] }
           ])
         }
       } else {
-        // Fallback data
+        // Show zero data when user has no data
         setCurveData([
-          { interval_days: 1, retention_rate: 0.92, review_count: 45, average_quality: 4.2, confidence_interval: [0.88, 0.96] },
-          { interval_days: 3, retention_rate: 0.85, review_count: 38, average_quality: 3.8, confidence_interval: [0.80, 0.90] },
-          { interval_days: 7, retention_rate: 0.78, review_count: 32, average_quality: 3.5, confidence_interval: [0.72, 0.84] },
-          { interval_days: 14, retention_rate: 0.72, review_count: 28, average_quality: 3.2, confidence_interval: [0.65, 0.79] }
+          { interval_days: 1, retention_rate: 0, review_count: 0, average_quality: 0, confidence_interval: [0, 0] },
+          { interval_days: 3, retention_rate: 0, review_count: 0, average_quality: 0, confidence_interval: [0, 0] },
+          { interval_days: 7, retention_rate: 0, review_count: 0, average_quality: 0, confidence_interval: [0, 0] },
+          { interval_days: 14, retention_rate: 0, review_count: 0, average_quality: 0, confidence_interval: [0, 0] }
         ])
       }
     } catch (error) {
       console.error('Error loading forgetting curve preview:', error)
-      // Use fallback data
+      // Show zero data when there's an error
       setCurveData([
-        { interval_days: 1, retention_rate: 0.92, review_count: 45, average_quality: 4.2, confidence_interval: [0.88, 0.96] },
-        { interval_days: 3, retention_rate: 0.85, review_count: 38, average_quality: 3.8, confidence_interval: [0.80, 0.90] },
-        { interval_days: 7, retention_rate: 0.78, review_count: 32, average_quality: 3.5, confidence_interval: [0.72, 0.84] },
-        { interval_days: 14, retention_rate: 0.72, review_count: 28, average_quality: 3.2, confidence_interval: [0.65, 0.79] }
+        { interval_days: 1, retention_rate: 0, review_count: 0, average_quality: 0, confidence_interval: [0, 0] },
+        { interval_days: 3, retention_rate: 0, review_count: 0, average_quality: 0, confidence_interval: [0, 0] },
+        { interval_days: 7, retention_rate: 0, review_count: 0, average_quality: 0, confidence_interval: [0, 0] },
+        { interval_days: 14, retention_rate: 0, review_count: 0, average_quality: 0, confidence_interval: [0, 0] }
       ])
     } finally {
       setLoading(false)

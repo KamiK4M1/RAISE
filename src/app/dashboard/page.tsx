@@ -44,6 +44,11 @@ export default function DashboardPage() {
     questionsAsked: 0,
     studyStreak: 0,
     totalStudyTime: 0,
+    averageScore: 0,
+    flashcardRetention: 0,
+    averageTimePerQuestion: 0,
+    weeklyGoalDays: 0,
+    weeklyGoalTarget: 7,
   })
   const [recentDocuments, setRecentDocuments] = useState<Document[]>([])
   const [recentActivities, setRecentActivities] = useState<Record<string, unknown>[]>([])
@@ -124,20 +129,43 @@ export default function DashboardPage() {
               questionsAsked: data.chat_stats?.total_questions || 0,
               studyStreak: data.flashcard_stats?.streak_days || 0,
               totalStudyTime: Math.round((data.study_patterns?.total_study_time || 0) / 60), // Convert to hours
+              averageScore: Math.round((data.quiz_stats?.average_score || 0) * 100),
+              flashcardRetention: Math.round((data.flashcard_stats?.retention_rate || 0) * 100),
+              averageTimePerQuestion: Math.round(data.study_patterns?.average_session_length || 0),
+              weeklyGoalDays: data.study_patterns?.weekly_activity?.length || 0,
+              weeklyGoalTarget: 7,
             })
           } else {
-            // Fallback if analytics fails
-            setStats(prev => ({
-              ...prev,
-              documentsUploaded: documentCount
-            }))
+            // Fallback if analytics fails - show zeros for all performance metrics
+            setStats({
+              documentsUploaded: documentCount,
+              flashcardsStudied: 0,
+              quizzesTaken: 0,
+              questionsAsked: 0,
+              studyStreak: 0,
+              totalStudyTime: 0,
+              averageScore: 0,
+              flashcardRetention: 0,
+              averageTimePerQuestion: 0,
+              weeklyGoalDays: 0,
+              weeklyGoalTarget: 7,
+            })
           }
         } catch (analyticsError) {
           console.error('Analytics failed, using document count only:', analyticsError)
-          setStats(prev => ({
-            ...prev,
-            documentsUploaded: documentCount
-          }))
+          setStats({
+            documentsUploaded: documentCount,
+            flashcardsStudied: 0,
+            quizzesTaken: 0,
+            questionsAsked: 0,
+            studyStreak: 0,
+            totalStudyTime: 0,
+            averageScore: 0,
+            flashcardRetention: 0,
+            averageTimePerQuestion: 0,
+            weeklyGoalDays: 0,
+            weeklyGoalTarget: 7,
+          })
         }
 
         // Load recent activities
@@ -156,14 +184,19 @@ export default function DashboardPage() {
         }
       } catch (error) {
         console.error('Error loading dashboard data:', error)
-        // Keep mock data as fallback
+        // Keep zero data as fallback
         setStats({
-          documentsUploaded: 12,
-          flashcardsStudied: 156,
-          quizzesTaken: 8,
-          questionsAsked: 23,
-          studyStreak: 7,
-          totalStudyTime: 45,
+          documentsUploaded: 0,
+          flashcardsStudied: 0,
+          quizzesTaken: 0,
+          questionsAsked: 0,
+          studyStreak: 0,
+          totalStudyTime: 0,
+          averageScore: 0,
+          flashcardRetention: 0,
+          averageTimePerQuestion: 0,
+          weeklyGoalDays: 0,
+          weeklyGoalTarget: 7,
         })
       } finally {
         setLoading(false)
@@ -497,9 +530,9 @@ export default function DashboardPage() {
                   <div>
                     <div className="flex justify-between items-center mb-2">
                       <span className="text-sm text-gray-600">เป้าหมายรายสัปดาห์</span>
-                      <span className="text-sm font-semibold">5/7 วัน</span>
+                      <span className="text-sm font-semibold">{stats.weeklyGoalDays}/{stats.weeklyGoalTarget} วัน</span>
                     </div>
-                    <Progress value={(5 / 7) * 100} className="h-2" />
+                    <Progress value={(stats.weeklyGoalDays / stats.weeklyGoalTarget) * 100} className="h-2" />
                   </div>
                 </div>
               </CardContent>
@@ -517,15 +550,15 @@ export default function DashboardPage() {
                 <div className="space-y-3">
                   <div className="flex justify-between">
                     <span className="text-sm text-gray-600">คะแนนเฉลี่ย</span>
-                    <span className="text-sm font-semibold text-green-600">82%</span>
+                    <span className="text-sm font-semibold text-green-600">{stats.averageScore}%</span>
                   </div>
                   <div className="flex justify-between">
                     <span className="text-sm text-gray-600">แฟลชการ์ดที่จำได้</span>
-                    <span className="text-sm font-semibold text-blue-600">78%</span>
+                    <span className="text-sm font-semibold text-blue-600">{stats.flashcardRetention}%</span>
                   </div>
                   <div className="flex justify-between">
                     <span className="text-sm text-gray-600">เวลาเฉลี่ยต่อคำถาม</span>
-                    <span className="text-sm font-semibold text-purple-600">12 วิ</span>
+                    <span className="text-sm font-semibold text-purple-600">{stats.averageTimePerQuestion} วิ</span>
                   </div>
                 </div>
               </CardContent>
