@@ -181,11 +181,11 @@ export default function LoginPage() {
                   </div>
                 </div>
 
-                <div className="flex items-center justify-between">
+                {/* <div className="flex items-center justify-between">
                   <Link href="/forgot-password" className="text-sm text-blue-600 hover:text-blue-700 hover:underline">
                     ลืมรหัสผ่าน?
                   </Link>
-                </div>
+                </div> */}
 
                 <motion.div whileHover={{ scale: 1.02 }} whileTap={{ scale: 0.98 }}>
                   <Button
