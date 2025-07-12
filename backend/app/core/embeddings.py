@@ -18,15 +18,16 @@ class EmbeddingService:
         # Optional: Add authentication if your endpoint requires it
         self.auth_token = getattr(settings, 'hf_auth_token', None)
 
-    async def generate_embeddings(self, texts: List[str]) -> List[List[float]]:
+    async def generate_embeddings(self, texts: List[str], max_retries: int = 3) -> List[List[float]]:
         """Generate embeddings for a list of texts using Hugging Face endpoint"""
         if not texts:
             return []
         
-        try:
-            headers = {
-                "Content-Type": "application/json"
-            }
+        for attempt in range(max_retries):
+            try:
+                headers = {
+                    "Content-Type": "application/json"
+                }
             
             # Add authentication header if token is provided
             if self.auth_token:
@@ -42,10 +43,10 @@ class EmbeddingService:
                     json=payload,
                     headers=headers,
                     timeout=aiohttp.ClientTimeout(
-                        total=600,  # 10 minutes total timeout
-                        connect=30,  # 30 seconds to establish connection
-                        sock_read=300,  # 5 minutes to read response
-                        sock_connect=30  # 30 seconds for socket connection
+                        total=900,  # 15 minutes total timeout
+                        connect=60,  # 60 seconds to establish connection
+                        sock_read=600,  # 10 minutes to read response
+                        sock_connect=60  # 60 seconds for socket connection
                     )
                 ) as response:
                     if response.status != 200:
@@ -61,12 +62,20 @@ class EmbeddingService:
                     logger.info(f"Generated embeddings for {len(texts)} texts")
                     return embeddings
             
-        except aiohttp.ClientError as e:
-            logger.error(f"HTTP client error: {e}")
-            raise EmbeddingError(f"Failed to connect to embedding service: {str(e)}")
-        except Exception as e:
-            logger.error(f"Embedding generation error: {e}")
-            raise EmbeddingError(f"เกิดข้อผิดพลาดในการสร้าง embedding: {str(e)}")
+            except (aiohttp.ClientError, asyncio.TimeoutError) as e:
+                logger.warning(f"Attempt {attempt + 1}/{max_retries} failed: {e}")
+                if attempt == max_retries - 1:
+                    logger.error(f"HTTP client error after {max_retries} attempts: {e}")
+                    raise EmbeddingError(f"Failed to connect to embedding service: {str(e)}")
+                
+                # Exponential backoff: wait 2^attempt seconds
+                wait_time = 2 ** attempt
+                logger.info(f"Retrying in {wait_time} seconds...")
+                await asyncio.sleep(wait_time)
+                continue
+            except Exception as e:
+                logger.error(f"Embedding generation error: {e}")
+                raise EmbeddingError(f"เกิดข้อผิดพลาดในการสร้าง embedding: {str(e)}")
 
     async def generate_single_embedding(self, text: str) -> List[float]:
         """Generate embedding for a single text"""
