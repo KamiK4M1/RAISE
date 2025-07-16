@@ -2,11 +2,16 @@
 import { motion, easeInOut } from "framer-motion"
 import { Button } from "@/components/ui/button"
 import { Card, CardDescription, CardHeader, CardTitle } from "@/components/ui/card"
-import { Upload, Brain, MessageSquare, BarChart3, BookOpen, Zap, Target, Sparkles } from "lucide-react"
+import { Upload, Brain, MessageSquare, BarChart3, BookOpen, Zap, Target, Sparkles, FileText, X } from "lucide-react"
 import Link from "next/link"
-// import { ModernFooter } from "@/components/ui/modern-footer"
+import { useState } from "react"
+
+type Language = 'th' | 'en'
 
 export default function HomePage() {
+  const [showTerms, setShowTerms] = useState(false)
+  const [language, setLanguage] = useState<Language>('th')
+
   const containerVariants = {
     hidden: { opacity: 0 },
     visible: {
@@ -36,6 +41,17 @@ export default function HomePage() {
     },
   }
 
+  const termsContent: Record<Language, { title: string; content: string }> = {
+    th: {
+      title: "ข้อตกลงในการใช้ซอฟต์แวร์",
+      content: `ซอฟต์แวร์นี้เป็นผลงานที่พัฒนาขึ้นโดย นายชิติพัทธ์ สร้อยสังวาลย์ จาก โรงเรียนสตรีวิทยา ๒ ในพระราชูปถัมภ์สมเด็จพระศรีนครินทราบรมราชชนนี ภายใต้การดูแลของ อาจารย์ที่ปรึกษา นายวรพันธ์ เรืองโอชา ภายใต้โครงการ เว็บแอปพลิเคชันปัญญาประดิษฐ์สำหรับส่งเสริมการเรียนรู้ด้วยตนเอง (Self-Learning) ผ่านเทคโนโลยี RAG (Retrieval-Augmented Generation) ซึ่งสนับสนุนโดย สำนักงานพัฒนาวิทยาศาสตร์และเทคโนโลยีแห่งชาติโดยมี วัตถุประสงค์เพื่อส่งเสริมให้นักเรียนและนักศึกษาได้เรียนรู้และฝึกทักษะในการพัฒนา ซอฟต์แวร์ลิขสิทธิ์ของซอฟต์แวร์นี้จึงเปน็ ของผู้พัฒนา ซึ่งผู้พัฒนาได้อนุญาตให้สำนักงาน พัฒนาวิทยาศาสตร์และเทคโนโลยีแห่งชาติเผยแพร่ซอฟต์แวร์นี้ตาม "ต้นฉบับ" โดยไม่มี การแก้ไขดัดแปลงใด ๆ ท้ังสิ้น ให้แก่บุคคลทั่วไปได้ใช้เพื่อประโยชน์ส่วนบุคคลหรือ ประโยชน์ทางการศึกษาที่ไม่มีวัตถุประสงค์ในเชิงพาณิชย์โดยไม่คิดค่าตอบแทนการใช้ ซอฟต์แวร์ดังน้ัน สำนักงานพัฒนาวิทยาศาสตร์และเทคโนโลยีแห่งชาติจึงไม่มีหน้าที่ใน การดูแล บำรุงรักษา จัดการอบรมการใช้งาน หรือพัฒนาประสิทธิภาพซอฟต์แวร์ รวมทั้ง ไม่รับรองความถูกต้องหรือประสิทธิภาพการท างานของซอฟต์แวร์ ตลอดจนไม่รับประกัน ความเสียหายต่าง ๆ อันเกิดจากการใช้ซอฟต์แวร์นี้ท้ังสิ้น`
+    },
+    en: {
+      title: "License Agreement",
+      content: `This software is a work developed by Shitiphat Soysangwarn from Satriwitthaya 2 School under the provision of Worapun Ruabgocha under AI Web Application for Enhancing Self-Learning through Retrieval-Augmented Generation (RAG) Technology, which has been supported by the National Science and Technology Development Agency (NSTDA), in order to encourage pupils and students to learn and practice their skills in developing software. Therefore, the intellectual property of this software shall belong to the developer and the developer gives NSTDA a permission to distribute this software as an "as is" and non-modified software for a temporary and non-exclusive use without remuneration to anyone for his or her own purpose or academic purpose, which are not commercial purposes. In this connection, NSTDA shall not be responsible to the user for taking care, maintaining, training, or developing the efficiency of this software. Moreover, NSTDA shall not be liable for any error, software efficiency and damages in connection with or arising out of the use of the software.`
+    }
+  }
+
   return (
     <div className="min-h-screen bg-gradient-to-br from-blue-50 via-white to-purple-50 overflow-hidden">
       {/* Navigation */}
@@ -55,6 +71,16 @@ export default function HomePage() {
             </span>
           </motion.div>
           <div className="flex items-center space-x-4">
+            <motion.div whileHover={{ scale: 1.05 }} whileTap={{ scale: 0.95 }}>
+              <Button 
+                variant="outline" 
+                className="bg-white text-gray-700 border-gray-300 hover:bg-gray-50"
+                onClick={() => setShowTerms(true)}
+              >
+                <FileText className="h-4 w-4 mr-2" />
+                ข้อตกลงการใช้งาน
+              </Button>
+            </motion.div>
             <Link href="/login">
               <motion.div whileHover={{ scale: 1.05 }} whileTap={{ scale: 0.95 }}>
                 <Button variant="outline" className="bg-white text-gray-700 border-gray-300 hover:bg-gray-50">
@@ -72,6 +98,81 @@ export default function HomePage() {
           </div>
         </div>
       </motion.nav>
+
+      {/* Terms of Service Modal */}
+      {showTerms && (
+        <motion.div
+          className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center p-4 z-50"
+          initial={{ opacity: 0 }}
+          animate={{ opacity: 1 }}
+          exit={{ opacity: 0 }}
+        >
+          <motion.div
+            className="bg-white rounded-2xl max-w-4xl max-h-[80vh] w-full overflow-hidden shadow-2xl"
+            initial={{ scale: 0.9, opacity: 0 }}
+            animate={{ scale: 1, opacity: 1 }}
+            exit={{ scale: 0.9, opacity: 0 }}
+          >
+            {/* Modal Header */}
+            <div className="flex items-center justify-between p-6 border-b">
+              <h2 className="text-2xl font-bold text-gray-900">
+                {termsContent[language].title}
+              </h2>
+              <div className="flex items-center space-x-4">
+                {/* Language Toggle */}
+                <div className="flex items-center space-x-2 bg-gray-100 p-1 rounded-lg">
+                  <button
+                    onClick={() => setLanguage('th')}
+                    className={`px-3 py-1 rounded-md text-sm font-medium transition-colors ${
+                      language === 'th' 
+                        ? 'bg-blue-600 text-white' 
+                        : 'text-gray-600 hover:text-gray-900'
+                    }`}
+                  >
+                    TH
+                  </button>
+                  <button
+                    onClick={() => setLanguage('en')}
+                    className={`px-3 py-1 rounded-md text-sm font-medium transition-colors ${
+                      language === 'en' 
+                        ? 'bg-blue-600 text-white' 
+                        : 'text-gray-600 hover:text-gray-900'
+                    }`}
+                  >
+                    EN
+                  </button>
+                </div>
+                {/* Close Button */}
+                <button
+                  onClick={() => setShowTerms(false)}
+                  className="p-2 hover:bg-gray-100 rounded-full transition-colors"
+                >
+                  <X className="h-5 w-5 text-gray-500" />
+                </button>
+              </div>
+            </div>
+
+            {/* Modal Content */}
+            <div className="p-6 overflow-y-auto max-h-[60vh]">
+              <div className="prose prose-gray max-w-none">
+                <p className="text-gray-700 leading-relaxed whitespace-pre-wrap">
+                  {termsContent[language].content}
+                </p>
+              </div>
+            </div>
+
+            {/* Modal Footer */}
+            <div className="flex justify-end p-6 border-t bg-gray-50">
+              <Button
+                onClick={() => setShowTerms(false)}
+                className="bg-gradient-to-r from-blue-600 to-purple-600 hover:from-blue-700 hover:to-purple-700 text-white"
+              >
+                ปิด
+              </Button>
+            </div>
+          </motion.div>
+        </motion.div>
+      )}
 
       {/* Hero Section */}
       <section className="container mx-auto px-4 py-16 lg:py-24 text-center relative">
@@ -264,9 +365,6 @@ export default function HomePage() {
           </motion.div>
         </motion.div>
       </motion.section>
-
-      {/* Modern Footer */}
-      {/* <ModernFooter /> */}
     </div>
   )
 }
