@@ -298,7 +298,7 @@ export default function FlashcardLibraryPage() {
             <div className="flex items-center space-x-2">
               <Brain className="h-8 w-8 text-purple-600" />
               <div>
-                <h1 className="text-xl font-bold text-gray-900">คลังแฟลชการ์ด</h1>
+                <h1 className="text-xl font-bold text-gray-900">RAISE</h1>
                 <p className="text-sm text-gray-600">จัดการและทบทวนแฟลชการ์ดทั้งหมด</p>
               </div>
             </div>
