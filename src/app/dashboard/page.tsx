@@ -62,23 +62,20 @@ export default function DashboardPage() {
 
   const handleLogoutClick = () => {
     setShowLogoutDialog(true)
+    setMobileMenuOpen(false)
   }
 
   const handleLogoutConfirm = async () => {
     setIsLoggingOut(true)
 
     try {
-      // Clear API token first
       apiService.setAuthToken(null)
-
-      // Then sign out from NextAuth
       await signOut({
         callbackUrl: "/login",
         redirect: true,
       })
     } catch (error) {
       console.error("Logout error:", error)
-      // Even if logout fails, clear local storage and redirect
       if (typeof window !== "undefined") {
         localStorage.removeItem("auth_token")
         await signOut({ callbackUrl: "/login", redirect: true })
@@ -94,14 +91,12 @@ export default function DashboardPage() {
   }
 
   useEffect(() => {
-    // Don't load data until session is ready and authenticated
     if (status === "loading" || !session?.accessToken) {
       return
     }
 
     const loadDashboardData = async () => {
       try {
-        // Load current user
         try {
           const userResponse = await apiService.getCurrentUser()
           if (userResponse.success && userResponse.data) {
@@ -111,7 +106,6 @@ export default function DashboardPage() {
           console.error("Failed to load user data:", userError)
         }
 
-        // Load recent documents first
         const documentsResponse = await apiService.listDocuments()
         let documentCount = 0
         if (documentsResponse.success && documentsResponse.data) {
@@ -119,7 +113,6 @@ export default function DashboardPage() {
           documentCount = documentsResponse.data.length
         }
 
-        // Load user analytics
         try {
           const analyticsResponse = await apiService.getUserAnalytics()
           if (analyticsResponse.success && analyticsResponse.data) {
@@ -169,7 +162,6 @@ export default function DashboardPage() {
           })
         }
 
-        // Load recent activities
         try {
           console.log("Fetching recent activities...")
           const activitiesResponse = await apiService.getRecentActivity(5)
@@ -284,20 +276,16 @@ export default function DashboardPage() {
             {mobileMenuOpen && (
               <div className="md:hidden border-t bg-white py-3">
                 <div className="flex flex-col space-y-3">
-                  <div className="px-3">
-                    <span className="text-sm text-gray-600">สวัสดี, {String(user?.name) || "นักเรียน"}</span>
-                  </div>
-                  <div className="px-3">
-                    <Button
-                      onClick={handleLogoutClick}
-                      variant="outline"
-                      size="sm"
-                      className="w-full justify-start bg-white text-gray-700 border-gray-300 hover:bg-gray-50"
-                    >
-                      <LogOut className="h-4 w-4 mr-2" />
-                      ออกจากระบบ
-                    </Button>
-                  </div>
+                  <div className="px-3 py-2 text-sm text-gray-600">สวัสดี, {String(user?.name) || "นักเรียน"}</div>
+                  <Button
+                    onClick={handleLogoutClick}
+                    variant="outline"
+                    size="sm"
+                    className="mx-3 justify-start bg-white text-gray-700 border-gray-300 hover:bg-gray-50"
+                  >
+                    <LogOut className="h-4 w-4 mr-2" />
+                    ออกจากระบบ
+                  </Button>
                 </div>
               </div>
             )}
@@ -307,20 +295,22 @@ export default function DashboardPage() {
         <div className="container mx-auto px-3 sm:px-4 lg:px-6 py-4 sm:py-6 lg:py-8">
           {/* Welcome Section */}
           <div className="mb-6 sm:mb-8">
-            <h1 className="text-xl sm:text-2xl lg:text-3xl font-bold text-gray-900 mb-1 sm:mb-2">แดชบอร์ดการเรียนรู้</h1>
+            <h1 className="text-xl sm:text-2xl lg:text-3xl font-bold text-gray-900 mb-2">แดชบอร์ดการเรียนรู้</h1>
             <p className="text-sm sm:text-base text-gray-600">ติดตามความก้าวหน้าและเข้าถึงเครื่องมือการเรียนรู้ของคุณ</p>
           </div>
 
           {/* Quick Stats */}
-          <div className="grid grid-cols-2 sm:grid-cols-4 gap-3 sm:gap-4 lg:gap-6 mb-6 sm:mb-8">
+          <div className="grid grid-cols-2 sm:grid-cols-2 lg:grid-cols-4 gap-3 sm:gap-4 lg:gap-6 mb-6 sm:mb-8">
             <Card className="border-0 shadow-sm hover:shadow-md transition-shadow">
               <CardContent className="p-3 sm:p-4 lg:p-6">
                 <div className="flex items-center justify-between">
                   <div className="min-w-0 flex-1">
-                    <p className="text-xs sm:text-sm text-gray-600 truncate">เอกสาร</p>
-                    <p className="text-lg sm:text-xl lg:text-2xl font-bold text-gray-900">{stats.documentsUploaded}</p>
+                    <p className="text-xs sm:text-sm text-gray-600 mb-1">เอกสาร</p>
+                    <p className="text-lg sm:text-xl lg:text-2xl font-bold text-gray-900 truncate">
+                      {stats.documentsUploaded}
+                    </p>
                   </div>
-                  <FileText className="h-5 w-5 sm:h-6 sm:w-6 lg:h-8 lg:w-8 text-blue-600 flex-shrink-0" />
+                  <FileText className="h-5 w-5 sm:h-6 sm:w-6 lg:h-8 lg:w-8 text-blue-600 flex-shrink-0 ml-2" />
                 </div>
               </CardContent>
             </Card>
@@ -329,10 +319,12 @@ export default function DashboardPage() {
               <CardContent className="p-3 sm:p-4 lg:p-6">
                 <div className="flex items-center justify-between">
                   <div className="min-w-0 flex-1">
-                    <p className="text-xs sm:text-sm text-gray-600 truncate">แฟลชการ์ด</p>
-                    <p className="text-lg sm:text-xl lg:text-2xl font-bold text-gray-900">{stats.flashcardsStudied}</p>
+                    <p className="text-xs sm:text-sm text-gray-600 mb-1">แฟลชการ์ด</p>
+                    <p className="text-lg sm:text-xl lg:text-2xl font-bold text-gray-900 truncate">
+                      {stats.flashcardsStudied}
+                    </p>
                   </div>
-                  <Zap className="h-5 w-5 sm:h-6 sm:w-6 lg:h-8 lg:w-8 text-purple-600 flex-shrink-0" />
+                  <Zap className="h-5 w-5 sm:h-6 sm:w-6 lg:h-8 lg:w-8 text-purple-600 flex-shrink-0 ml-2" />
                 </div>
               </CardContent>
             </Card>
@@ -341,10 +333,12 @@ export default function DashboardPage() {
               <CardContent className="p-3 sm:p-4 lg:p-6">
                 <div className="flex items-center justify-between">
                   <div className="min-w-0 flex-1">
-                    <p className="text-xs sm:text-sm text-gray-600 truncate">แบบทดสอบ</p>
-                    <p className="text-lg sm:text-xl lg:text-2xl font-bold text-gray-900">{stats.quizzesTaken}</p>
+                    <p className="text-xs sm:text-sm text-gray-600 mb-1">แบบทดสอบ</p>
+                    <p className="text-lg sm:text-xl lg:text-2xl font-bold text-gray-900 truncate">
+                      {stats.quizzesTaken}
+                    </p>
                   </div>
-                  <BookOpen className="h-5 w-5 sm:h-6 sm:w-6 lg:h-8 lg:w-8 text-green-600 flex-shrink-0" />
+                  <BookOpen className="h-5 w-5 sm:h-6 sm:w-6 lg:h-8 lg:w-8 text-green-600 flex-shrink-0 ml-2" />
                 </div>
               </CardContent>
             </Card>
@@ -353,10 +347,12 @@ export default function DashboardPage() {
               <CardContent className="p-3 sm:p-4 lg:p-6">
                 <div className="flex items-center justify-between">
                   <div className="min-w-0 flex-1">
-                    <p className="text-xs sm:text-sm text-gray-600 truncate">เวลาเรียน (ชม.)</p>
-                    <p className="text-lg sm:text-xl lg:text-2xl font-bold text-gray-900">{stats.totalStudyTime}</p>
+                    <p className="text-xs sm:text-sm text-gray-600 mb-1">เวลาเรียน (ชม.)</p>
+                    <p className="text-lg sm:text-xl lg:text-2xl font-bold text-gray-900 truncate">
+                      {stats.totalStudyTime}
+                    </p>
                   </div>
-                  <Clock className="h-5 w-5 sm:h-6 sm:w-6 lg:h-8 lg:w-8 text-orange-600 flex-shrink-0" />
+                  <Clock className="h-5 w-5 sm:h-6 sm:w-6 lg:h-8 lg:w-8 text-orange-600 flex-shrink-0 ml-2" />
                 </div>
               </CardContent>
             </Card>
@@ -372,36 +368,34 @@ export default function DashboardPage() {
                   <CardDescription className="text-xs sm:text-sm">เลือกเครื่องมือที่ต้องการใช้งาน</CardDescription>
                 </CardHeader>
                 <CardContent className="pt-0">
-                  <div className="grid gap-3 sm:gap-4">
+                  <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-3 sm:gap-4">
                     {/* Upload Document */}
                     <Link href="/upload" className="block">
-                      <Card className="border border-gray-200 hover:border-blue-300 hover:shadow-md transition-all cursor-pointer">
-                        <CardContent className="p-4 sm:p-6">
-                          <div className="flex items-center space-x-4">
-                            <Upload className="h-8 w-8 sm:h-10 sm:w-10 text-blue-600 flex-shrink-0" />
-                            <div className="min-w-0 flex-1">
-                              <h3 className="font-semibold text-sm sm:text-base mb-1">อัปโหลดเอกสาร</h3>
-                              <p className="text-xs sm:text-sm text-gray-600">เพิ่มเอกสารใหม่เพื่อสร้างเครื่องมือการเรียนรู้</p>
-                            </div>
-                          </div>
+                      <Card className="border border-gray-200 hover:border-blue-300 hover:shadow-md transition-all cursor-pointer h-full">
+                        <CardContent className="p-4 sm:p-6 text-center h-full flex flex-col justify-center">
+                          <Upload className="h-8 w-8 sm:h-10 sm:w-10 lg:h-12 lg:w-12 text-blue-600 mx-auto mb-3 sm:mb-4" />
+                          <h3 className="font-semibold mb-2 text-sm sm:text-base">อัปโหลดเอกสาร</h3>
+                          <p className="text-xs sm:text-sm text-gray-600 leading-relaxed">
+                            เพิ่มเอกสารใหม่เพื่อสร้างเครื่องมือการเรียนรู้
+                          </p>
                         </CardContent>
                       </Card>
                     </Link>
 
                     {/* Flashcards - Featured */}
-                    <Card className="border border-gray-200 hover:border-purple-300 hover:shadow-md transition-all cursor-pointer bg-gradient-to-br from-purple-50 to-indigo-50">
+                    <Card className="border border-gray-200 hover:border-purple-300 hover:shadow-md transition-all cursor-pointer bg-gradient-to-br from-purple-50 to-indigo-50 sm:col-span-2 lg:col-span-2">
                       <CardContent className="p-4 sm:p-6">
-                        <div className="flex items-center justify-between mb-4">
-                          <div className="flex items-center space-x-3 min-w-0 flex-1">
+                        <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between mb-4 space-y-3 sm:space-y-0">
+                          <div className="flex items-center space-x-3">
                             <div className="p-2 bg-purple-600 rounded-lg flex-shrink-0">
                               <Brain className="h-5 w-5 sm:h-6 sm:w-6 text-white" />
                             </div>
-                            <div className="min-w-0 flex-1">
+                            <div className="min-w-0">
                               <h3 className="font-semibold text-base sm:text-lg text-gray-900">แฟลชการ์ด</h3>
                               <p className="text-xs sm:text-sm text-gray-600">ทบทวนและสร้างแฟลชการ์ดอัจฉริยะ</p>
                             </div>
                           </div>
-                          <div className="text-right flex-shrink-0">
+                          <div className="text-center sm:text-right flex-shrink-0">
                             <p className="text-xl sm:text-2xl font-bold text-purple-600">{stats.flashcardsStudied}</p>
                             <p className="text-xs text-gray-500">บัตรทั้งหมด</p>
                           </div>
@@ -430,38 +424,40 @@ export default function DashboardPage() {
                       </CardContent>
                     </Card>
 
-                    {/* Other Tools Grid */}
-                    <div className="grid grid-cols-1 sm:grid-cols-3 gap-3 sm:gap-4">
-                      <Link href="/quiz" className="block">
-                        <Card className="border border-gray-200 hover:border-green-300 hover:shadow-md transition-all cursor-pointer h-full">
-                          <CardContent className="p-4 sm:p-6 text-center h-full flex flex-col justify-center">
-                            <BookOpen className="h-8 w-8 sm:h-10 sm:w-10 text-green-600 mx-auto mb-3" />
-                            <h3 className="font-semibold mb-2 text-sm sm:text-base">แบบทดสอบ</h3>
-                            <p className="text-xs sm:text-sm text-gray-600">ทดสอบความรู้ด้วยแบบทดสอบอัตโนมัติ</p>
-                          </CardContent>
-                        </Card>
-                      </Link>
+                    {/* Quiz */}
+                    <Link href="/quiz" className="block">
+                      <Card className="border border-gray-200 hover:border-green-300 hover:shadow-md transition-all cursor-pointer h-full">
+                        <CardContent className="p-4 sm:p-6 text-center h-full flex flex-col justify-center">
+                          <BookOpen className="h-8 w-8 sm:h-10 sm:w-10 lg:h-12 lg:w-12 text-green-600 mx-auto mb-3 sm:mb-4" />
+                          <h3 className="font-semibold mb-2 text-sm sm:text-base">แบบทดสอบ</h3>
+                          <p className="text-xs sm:text-sm text-gray-600 leading-relaxed">
+                            ทดสอบความรู้ด้วยแบบทดสอบอัตโนมัติ
+                          </p>
+                        </CardContent>
+                      </Card>
+                    </Link>
 
-                      <Link href="/chat" className="block">
-                        <Card className="border border-gray-200 hover:border-orange-300 hover:shadow-md transition-all cursor-pointer h-full">
-                          <CardContent className="p-4 sm:p-6 text-center h-full flex flex-col justify-center">
-                            <MessageSquare className="h-8 w-8 sm:h-10 sm:w-10 text-orange-600 mx-auto mb-3" />
-                            <h3 className="font-semibold mb-2 text-sm sm:text-base">ถาม AI</h3>
-                            <p className="text-xs sm:text-sm text-gray-600">สอบถามคำถามเกี่ยวกับเนื้อหา</p>
-                          </CardContent>
-                        </Card>
-                      </Link>
+                    {/* Chat AI */}
+                    <Link href="/chat" className="block">
+                      <Card className="border border-gray-200 hover:border-orange-300 hover:shadow-md transition-all cursor-pointer h-full">
+                        <CardContent className="p-4 sm:p-6 text-center h-full flex flex-col justify-center">
+                          <MessageSquare className="h-8 w-8 sm:h-10 sm:w-10 lg:h-12 lg:w-12 text-orange-600 mx-auto mb-3 sm:mb-4" />
+                          <h3 className="font-semibold mb-2 text-sm sm:text-base">ถาม AI</h3>
+                          <p className="text-xs sm:text-sm text-gray-600 leading-relaxed">สอบถามคำถามเกี่ยวกับเนื้อหา</p>
+                        </CardContent>
+                      </Card>
+                    </Link>
 
-                      <Link href="/reports" className="block">
-                        <Card className="border border-gray-200 hover:border-pink-300 hover:shadow-md transition-all cursor-pointer h-full">
-                          <CardContent className="p-4 sm:p-6 text-center h-full flex flex-col justify-center">
-                            <BarChart3 className="h-8 w-8 sm:h-10 sm:w-10 text-pink-600 mx-auto mb-3" />
-                            <h3 className="font-semibold mb-2 text-sm sm:text-base">รายงาน</h3>
-                            <p className="text-xs sm:text-sm text-gray-600">ดูสถิติและความคืบหน้า</p>
-                          </CardContent>
-                        </Card>
-                      </Link>
-                    </div>
+                    {/* Reports */}
+                    <Link href="/reports" className="block">
+                      <Card className="border border-gray-200 hover:border-pink-300 hover:shadow-md transition-all cursor-pointer h-full">
+                        <CardContent className="p-4 sm:p-6 text-center h-full flex flex-col justify-center">
+                          <BarChart3 className="h-8 w-8 sm:h-10 sm:w-10 lg:h-12 lg:w-12 text-pink-600 mx-auto mb-3 sm:mb-4" />
+                          <h3 className="font-semibold mb-2 text-sm sm:text-base">รายงาน</h3>
+                          <p className="text-xs sm:text-sm text-gray-600 leading-relaxed">ดูสถิติและความคืบหน้า</p>
+                        </CardContent>
+                      </Card>
+                    </Link>
                   </div>
                 </CardContent>
               </Card>
@@ -491,7 +487,7 @@ export default function DashboardPage() {
                         }
 
                         return (
-                          <div key={index} className="flex items-center space-x-3">
+                          <div key={index} className="flex items-center space-x-3 py-2">
                             <div
                               className={`w-2 h-2 ${getIconColorClass(String(activity.icon_color) || "blue")} rounded-full flex-shrink-0`}
                             ></div>
@@ -523,7 +519,7 @@ export default function DashboardPage() {
                           className="flex items-center justify-between p-3 bg-gray-50 rounded-lg"
                         >
                           <div className="flex items-center space-x-3 min-w-0 flex-1">
-                            <FileText className="h-5 w-5 text-blue-600 flex-shrink-0" />
+                            <FileText className="h-4 w-4 sm:h-5 sm:w-5 text-blue-600 flex-shrink-0" />
                             <div className="min-w-0 flex-1">
                               <p className="text-sm font-medium text-gray-900 truncate">{document.filename}</p>
                               <p className="text-xs text-gray-500">
@@ -533,7 +529,11 @@ export default function DashboardPage() {
                           </div>
                           <div className="flex items-center space-x-1 sm:space-x-2 flex-shrink-0">
                             <Link href={`/documents/${document.document_id}`}>
-                              <Button variant="ghost" size="sm" className="text-blue-600 hover:text-blue-800 p-2">
+                              <Button
+                                variant="ghost"
+                                size="sm"
+                                className="text-blue-600 hover:text-blue-800 p-1 sm:p-2"
+                              >
                                 <Eye className="h-4 w-4" />
                               </Button>
                             </Link>
@@ -542,7 +542,7 @@ export default function DashboardPage() {
                               size="sm"
                               onClick={() => handleDeleteDocument(document.document_id)}
                               disabled={deletingDocuments.has(document.document_id)}
-                              className="text-red-600 hover:text-red-800 p-2"
+                              className="text-red-600 hover:text-red-800 p-1 sm:p-2"
                             >
                               <Trash2 className="h-4 w-4" />
                             </Button>
@@ -568,7 +568,7 @@ export default function DashboardPage() {
               <Card className="border-0 shadow-sm">
                 <CardHeader className="pb-3 sm:pb-4">
                   <CardTitle className="flex items-center space-x-2 text-base sm:text-lg">
-                    <Target className="h-4 w-4 sm:h-5 sm:w-5 text-orange-600" />
+                    <Target className="h-4 w-4 sm:h-5 sm:w-5 text-orange-600 flex-shrink-0" />
                     <span>สถิติการเรียน</span>
                   </CardTitle>
                 </CardHeader>
@@ -598,7 +598,7 @@ export default function DashboardPage() {
               <Card className="border-0 shadow-sm">
                 <CardHeader className="pb-3 sm:pb-4">
                   <CardTitle className="flex items-center space-x-2 text-base sm:text-lg">
-                    <TrendingUp className="h-4 w-4 sm:h-5 sm:w-5 text-green-600" />
+                    <TrendingUp className="h-4 w-4 sm:h-5 sm:w-5 text-green-600 flex-shrink-0" />
                     <span>ผลการเรียน</span>
                   </CardTitle>
                 </CardHeader>
@@ -625,17 +625,19 @@ export default function DashboardPage() {
 
         {/* Logout Confirmation Dialog */}
         <Dialog open={showLogoutDialog} onOpenChange={setShowLogoutDialog}>
-          <DialogContent className="mx-4 sm:mx-0">
+          <DialogContent className="sm:max-w-md mx-4">
             <DialogHeader>
-              <DialogTitle>ออกจากระบบ</DialogTitle>
-              <DialogDescription>คุณแน่ใจหรือไม่ว่าต้องการออกจากระบบ? คุณจะต้องเข้าสู่ระบบใหม่เพื่อเข้าใช้งาน</DialogDescription>
+              <DialogTitle className="text-base sm:text-lg">ออกจากระบบ</DialogTitle>
+              <DialogDescription className="text-sm">
+                คุณแน่ใจหรือไม่ว่าต้องการออกจากระบบ? คุณจะต้องเข้าสู่ระบบใหม่เพื่อเข้าใช้งาน
+              </DialogDescription>
             </DialogHeader>
             <DialogFooter className="flex-col sm:flex-row gap-2 sm:gap-0">
               <Button
                 variant="outline"
                 onClick={handleLogoutCancel}
                 disabled={isLoggingOut}
-                className="w-full sm:w-auto bg-transparent"
+                className="w-full sm:w-auto order-2 sm:order-1 bg-transparent"
               >
                 ยกเลิก
               </Button>
@@ -643,7 +645,7 @@ export default function DashboardPage() {
                 variant="destructive"
                 onClick={handleLogoutConfirm}
                 disabled={isLoggingOut}
-                className="w-full sm:w-auto"
+                className="w-full sm:w-auto order-1 sm:order-2"
               >
                 {isLoggingOut ? (
                   <>
