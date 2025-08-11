@@ -39,7 +39,7 @@ class Settings(BaseSettings):
     hf_auth_token: Optional[str] = Field(default=None, env="HF_AUTH_TOKEN")
     
     # Model Settings
-    llm_model: str = "meta-llama/Llama-3.3-70B-Instruct-Turbo-Free"
+    llm_model: str = "meta-llama/Llama-3.3-70B-Instruct-Turbo"
     embedding_model: str = "BAAI/bge-m3"
     max_tokens: int = 2048
     temperature: float = 0.7
